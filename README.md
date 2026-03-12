@@ -19,5 +19,4 @@ This app uses:
 
 
 ## License
-
-MIT License
+ GPL 3
