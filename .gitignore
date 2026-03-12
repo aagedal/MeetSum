@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+*.xcuserdatad/
+DerivedData/
+*.pbxproj.bak*
+
+# Model binaries
+*.bin
+*.gguf
+models/
+
+# App binaries
+MeetSum/MeetSum/bin/
