@@ -17,7 +17,7 @@ struct ContentView: View {
     @State private var selectedTab: Int = 0
     @State private var captureMicrophone: Bool = ModelSettings.captureMicrophone
     @State private var captureSystemAudio: Bool = ModelSettings.captureSystemAudio
-    @State private var spaceKeyMonitor: Any?
+    @State private var keyMonitor: Any?
     @State private var showEndRecordingConfirmation = false
     @Environment(\.openWindow) private var openWindow
 
@@ -198,15 +198,11 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            spaceKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                // Space key = keyCode 49
-                guard event.keyCode == 49 else { return event }
-
-                // Don't intercept if a text field or text view is focused
-                if let responder = event.window?.firstResponder,
-                   responder is NSTextView || responder is NSTextField {
-                    return event
-                }
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                let textFieldFocused: Bool = {
+                    guard let responder = event.window?.firstResponder else { return false }
+                    return responder is NSTextView || responder is NSTextField
+                }()
 
                 // Only act when a playback file is available and not recording
                 guard !viewModel.isRecording && !viewModel.isPaused && !viewModel.isNewMeetingMode,
@@ -214,18 +210,39 @@ struct ContentView: View {
                     return event
                 }
 
-                if viewModel.isPlaying {
-                    viewModel.pausePlayback()
-                } else {
-                    viewModel.playRecording()
+                // Cmd+P — play/pause (works even when typing in notes)
+                if event.keyCode == 35 && event.modifierFlags.contains(.command) {
+                    if viewModel.isPlaying { viewModel.pausePlayback() } else { viewModel.playRecording() }
+                    return nil
                 }
-                return nil // consume the event
+
+                // Remaining shortcuts only work when no text field is focused
+                guard !textFieldFocused else { return event }
+
+                switch event.keyCode {
+                case 49: // Space — play/pause
+                    if viewModel.isPlaying { viewModel.pausePlayback() } else { viewModel.playRecording() }
+                    return nil
+
+                case 123: // Left arrow — seek backward
+                    let step: TimeInterval = event.modifierFlags.contains(.shift) ? 30 : 5
+                    viewModel.seekPlayback(to: viewModel.playbackCurrentTime - step)
+                    return nil
+
+                case 124: // Right arrow — seek forward
+                    let step: TimeInterval = event.modifierFlags.contains(.shift) ? 30 : 5
+                    viewModel.seekPlayback(to: viewModel.playbackCurrentTime + step)
+                    return nil
+
+                default:
+                    return event
+                }
             }
         }
         .onDisappear {
-            if let monitor = spaceKeyMonitor {
+            if let monitor = keyMonitor {
                 NSEvent.removeMonitor(monitor)
-                spaceKeyMonitor = nil
+                keyMonitor = nil
             }
             // Flush any pending notes so they aren't lost on window close / app quit
             viewModel.saveNotes()

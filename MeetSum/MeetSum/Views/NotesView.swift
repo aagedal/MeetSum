@@ -186,6 +186,11 @@ struct TimestampedTextView: NSViewRepresentable {
                     return true
                 }
             }
+            // Escape resigns focus so playback shortcuts (space, arrows) work
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                textView.window?.makeFirstResponder(nil)
+                return true
+            }
             return false
         }
 

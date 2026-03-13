@@ -95,15 +95,24 @@ struct MeetingDetailView: View {
                         isEditingTitle = false
                     })
                     .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .textFieldStyle(.plain)
+                    .textFieldStyle(.roundedBorder)
+                    .onExitCommand { isEditingTitle = false }
                 } else {
-                    Text(viewModel.recordingSession?.title ?? "New Meeting")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .onTapGesture(count: 2) {
-                            guard canEditTitle else { return }
-                            editableTitle = viewModel.recordingSession?.title ?? "New Meeting"
-                            isEditingTitle = true
+                    HStack(spacing: 6) {
+                        Text(viewModel.recordingSession?.title ?? "New Meeting")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+
+                        if canEditTitle {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
                         }
+                    }
+                    .onTapGesture {
+                        guard canEditTitle else { return }
+                        editableTitle = viewModel.recordingSession?.title ?? "New Meeting"
+                        isEditingTitle = true
+                    }
                 }
             }
 
