@@ -12,96 +12,114 @@ import MLXLLM
 import MLXLMCommon
 
 struct SettingsView: View {
-    @ObservedObject var modelManager: ModelManager
-    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var modelManager: ModelManager
 
-    @State private var showingDirectoryPicker = false
+    @State private var showingWhisperDirectoryPicker = false
+    @State private var showingMLXDirectoryPicker = false
+    @State private var showingModelImporter = false
     @State private var downloadingModels: Set<String> = []
     @State private var selectedEngine: SummarizationEngine = ModelSettings.summarizationEngine
     @State private var customPrompt: String = ModelSettings.summarizationSystemPrompt
     @StateObject private var mlxLoader = MLXModelLoader()
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("Settings")
-                    .font(.title.bold())
-                Spacer()
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                        .font(.title2)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding()
-            .background(Color(NSColor.windowBackgroundColor))
-
+        TabView {
+            // General tab
             ScrollView {
                 VStack(spacing: 24) {
-                    // Model Directory Section
-                    modelDirectorySection
-
+                    whisperDirectorySection
                     Divider()
+                    mlxDirectorySection
+                    Divider()
+                    dataDirectorySection
+                }
+                .padding()
+            }
+            .tabItem {
+                Label("General", systemImage: "gearshape")
+            }
 
-                    // Installed Whisper Models Section
+            // Transcription tab
+            ScrollView {
+                VStack(spacing: 24) {
                     installedModelsSection
 
-                    Divider()
+                    if !modelManager.customModels.isEmpty {
+                        Divider()
+                        customModelsSection
+                    }
 
-                    // Summarization Engine Section
+                    Divider()
+                    availableWhisperModelsSection
+                }
+                .padding()
+            }
+            .tabItem {
+                Label("Transcription", systemImage: "waveform")
+            }
+
+            // Summarization tab
+            ScrollView {
+                VStack(spacing: 24) {
                     summarizationEngineSection
 
-                    // MLX Model Section (only when MLX is selected)
                     if selectedEngine == .mlx {
                         Divider()
                         mlxModelSection
                     }
 
                     Divider()
-
-                    // Summarization Prompt Section
                     summarizationPromptSection
-
-                    Divider()
-
-                    // Data Directory Section
-                    dataDirectorySection
-
-                    Divider()
-
-                    // Available Whisper Models Section
-                    availableWhisperModelsSection
                 }
                 .padding()
             }
+            .tabItem {
+                Label("Summarization", systemImage: "sparkles")
+            }
         }
-        .frame(width: 600, height: 650)
+        .frame(width: 620, height: 520)
         .fileImporter(
-            isPresented: $showingDirectoryPicker,
+            isPresented: $showingWhisperDirectoryPicker,
             allowedContentTypes: [.folder],
             allowsMultipleSelection: false
         ) { result in
-            handleDirectorySelection(result)
+            handleWhisperDirectorySelection(result)
+        }
+        .fileImporter(
+            isPresented: $showingMLXDirectoryPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            handleMLXDirectorySelection(result)
+        }
+        .fileImporter(
+            isPresented: $showingModelImporter,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: true
+        ) { result in
+            handleModelImport(result)
         }
     }
 
-    // MARK: - Model Directory Section
+    // MARK: - Whisper Directory Section
 
-    private var modelDirectorySection: some View {
+    private var whisperDirectorySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Model Directory", systemImage: "folder.fill")
+            Label("Whisper Model Directory", systemImage: "folder.fill")
                 .font(.headline)
 
-            if let directory = modelManager.modelDirectory {
+            Text("Directory for Whisper speech-to-text model files (.bin).")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            if let directory = modelManager.whisperModelDirectory {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(directory.path)
                             .font(.system(.caption, design: .monospaced))
                             .foregroundColor(.secondary)
 
-                        if let diskSpace = modelManager.availableDiskSpace {
+                        if let diskSpace = modelManager.whisperAvailableDiskSpace {
                             Text("Available: \(ByteCountFormatter.string(fromByteCount: diskSpace, countStyle: .file))")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -117,7 +135,7 @@ struct SettingsView: View {
                     .controlSize(.small)
 
                     Button("Change...") {
-                        showingDirectoryPicker = true
+                        showingWhisperDirectoryPicker = true
                     }
                     .controlSize(.small)
                 }
@@ -125,8 +143,52 @@ struct SettingsView: View {
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(8)
             } else {
-                Button("Select Models Directory") {
-                    showingDirectoryPicker = true
+                Button("Select Whisper Models Directory") {
+                    showingWhisperDirectoryPicker = true
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+    }
+
+    // MARK: - MLX Directory Section
+
+    private var mlxDirectorySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("MLX Model Directory", systemImage: "folder.fill")
+                .font(.headline)
+
+            Text("Directory for MLX summarization model caches. Point this to an existing HuggingFace cache to reuse downloads from other apps.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            if let directory = modelManager.mlxModelDirectory {
+                HStack {
+                    Text(directory.path)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Spacer()
+
+                    Button("Open in Finder") {
+                        NSWorkspace.shared.open(directory)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button("Change...") {
+                        showingMLXDirectoryPicker = true
+                    }
+                    .controlSize(.small)
+                }
+                .padding()
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+            } else {
+                Button("Select MLX Models Directory") {
+                    showingMLXDirectoryPicker = true
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -135,20 +197,24 @@ struct SettingsView: View {
 
     // MARK: - Installed Models Section
 
+    private var installedWhisperModels: [ModelMetadata] {
+        modelManager.availableModels.filter { modelManager.isModelInstalled($0.id) && $0.type == .whisper }
+    }
+
     private var installedModelsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Installed Whisper Models", systemImage: "checkmark.circle.fill")
                 .font(.headline)
                 .foregroundColor(.green)
 
-            if modelManager.installedModels.isEmpty {
+            if installedWhisperModels.isEmpty && modelManager.customModels.isEmpty {
                 Text("No Whisper models installed")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding()
             } else {
-                ForEach(modelManager.availableModels.filter { modelManager.isModelInstalled($0.id) && $0.type == .whisper }) { model in
+                ForEach(installedWhisperModels) { model in
                     installedModelRow(model)
                 }
             }
@@ -159,6 +225,56 @@ struct SettingsView: View {
         HStack {
             Image(systemName: "waveform")
                 .foregroundColor(.blue)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.name)
+                    .font(.subheadline.weight(.medium))
+                Text(model.description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Text(model.sizeFormatted)
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Button(action: {
+                deleteModel(model)
+            }) {
+                Image(systemName: "trash")
+                    .foregroundColor(.red)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding()
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+
+    // MARK: - Custom Models Section
+
+    private var customModelsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Custom Models", systemImage: "doc.badge.gearshape")
+                .font(.headline)
+
+            Text("Models discovered in your model directory that aren't in the built-in list.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            ForEach(modelManager.customModels) { model in
+                customModelRow(model)
+            }
+        }
+    }
+
+    private func customModelRow(_ model: ModelMetadata) -> some View {
+        HStack {
+            Image(systemName: "waveform")
+                .foregroundColor(.orange)
                 .frame(width: 30)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -366,8 +482,21 @@ struct SettingsView: View {
 
     private var availableWhisperModelsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("Available Whisper Downloads", systemImage: "arrow.down.circle")
-                .font(.headline)
+            HStack {
+                Label("Available Whisper Downloads", systemImage: "arrow.down.circle")
+                    .font(.headline)
+
+                Spacer()
+
+                Button(action: {
+                    showingModelImporter = true
+                }) {
+                    Label("Import Model...", systemImage: "doc.badge.plus")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
 
             ForEach(modelManager.availableModels.filter { $0.type == .whisper }) { model in
                 availableModelRow(model)
@@ -376,40 +505,34 @@ struct SettingsView: View {
     }
 
     private func availableModelRow(_ model: ModelMetadata) -> some View {
-        HStack {
-            Image(systemName: "waveform")
-                .foregroundColor(.blue)
-                .frame(width: 30)
+        let isDownloading = modelManager.downloadProgress[model.id] != nil
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(model.name)
-                    .font(.subheadline.weight(.medium))
-                Text(model.description)
+        return VStack(spacing: 0) {
+            // Top row: model info + action button
+            HStack {
+                Image(systemName: "waveform")
+                    .foregroundColor(.blue)
+                    .frame(width: 30)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(model.name)
+                        .font(.subheadline.weight(.medium))
+                    Text(model.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Text(model.sizeFormatted)
                     .font(.caption)
                     .foregroundColor(.secondary)
-            }
+                    .padding(.horizontal, 8)
 
-            Spacer()
-
-            Text(model.sizeFormatted)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 8)
-
-            if modelManager.isModelInstalled(model.id) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-            } else if let progress = modelManager.downloadProgress[model.id] {
-                HStack(spacing: 8) {
-                    VStack(spacing: 2) {
-                        ProgressView(value: progress)
-                            .progressViewStyle(.linear)
-                            .frame(width: 60)
-                        Text("\(Int(progress * 100))%")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-
+                if modelManager.isModelInstalled(model.id) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                } else if isDownloading {
                     Button(action: {
                         modelManager.cancelDownload(for: model.id)
                     }) {
@@ -417,16 +540,43 @@ struct SettingsView: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
+                } else {
+                    Button(action: {
+                        downloadModel(model)
+                    }) {
+                        Label("Download", systemImage: "arrow.down.circle.fill")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
                 }
-            } else {
-                Button(action: {
-                    downloadModel(model)
-                }) {
-                    Label("Download", systemImage: "arrow.down.circle.fill")
-                        .font(.caption)
+            }
+
+            // Progress bar + details below the model info row
+            if let progress = modelManager.downloadProgress[model.id] {
+                VStack(spacing: 6) {
+                    ProgressView(value: progress.fractionCompleted)
+                        .progressViewStyle(.linear)
+
+                    HStack {
+                        Text("\(progress.downloadedFormatted) of \(progress.totalFormatted)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+
+                        Spacer()
+
+                        if progress.bytesPerSecond > 0 {
+                            Text(progress.speedFormatted)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Text("\(progress.percentComplete)%")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+                .padding(.top, 8)
             }
         }
         .padding()
@@ -511,8 +661,8 @@ struct SettingsView: View {
 
     private func mlxModelCacheDirectory(_ model: ModelMetadata) -> URL? {
         guard let hfId = model.huggingFaceId else { return nil }
-        guard let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
-        return cachesDir.appendingPathComponent("models").appendingPathComponent(hfId)
+        guard let mlxDir = modelManager.mlxModelDirectory else { return nil }
+        return mlxDir.appendingPathComponent(hfId)
     }
 
     private func isMLXModelCached(_ model: ModelMetadata) -> Bool {
@@ -532,15 +682,43 @@ struct SettingsView: View {
 
     // MARK: - Actions
 
-    private func handleDirectorySelection(_ result: Result<[URL], Error>) {
+    private func handleWhisperDirectorySelection(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
-            modelManager.setModelDirectory(url)
-            Logger.info("User selected model directory: \(url.path)", category: Logger.ui)
+            modelManager.setWhisperModelDirectory(url)
+            Logger.info("User selected Whisper model directory: \(url.path)", category: Logger.ui)
 
         case .failure(let error):
-            Logger.error("Failed to select directory", error: error, category: Logger.ui)
+            Logger.error("Failed to select Whisper directory", error: error, category: Logger.ui)
+        }
+    }
+
+    private func handleMLXDirectorySelection(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            modelManager.setMLXModelDirectory(url)
+            Logger.info("User selected MLX model directory: \(url.path)", category: Logger.ui)
+
+        case .failure(let error):
+            Logger.error("Failed to select MLX directory", error: error, category: Logger.ui)
+        }
+    }
+
+    private func handleModelImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            for url in urls {
+                do {
+                    try modelManager.importModel(from: url)
+                    Logger.info("Imported model: \(url.lastPathComponent)", category: Logger.ui)
+                } catch {
+                    Logger.error("Failed to import model: \(url.lastPathComponent)", error: error, category: Logger.ui)
+                }
+            }
+        case .failure(let error):
+            Logger.error("Model import picker failed", error: error, category: Logger.ui)
         }
     }
 

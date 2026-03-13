@@ -38,6 +38,7 @@ struct RecordingSession: Identifiable, Codable {
     var summary: String
     var createdAt: Date
     var segments: [TranscriptSegment]
+    var notes: String
 
     init(
         id: UUID = UUID(),
@@ -48,7 +49,8 @@ struct RecordingSession: Identifiable, Codable {
         transcription: String = "",
         summary: String = "",
         createdAt: Date = Date(),
-        segments: [TranscriptSegment] = []
+        segments: [TranscriptSegment] = [],
+        notes: String = ""
     ) {
         self.id = id
         self.title = title ?? Self.defaultTitle(for: createdAt)
@@ -59,6 +61,7 @@ struct RecordingSession: Identifiable, Codable {
         self.summary = summary
         self.createdAt = createdAt
         self.segments = segments
+        self.notes = notes
     }
 
     // Backward-compatible decoding
@@ -73,6 +76,7 @@ struct RecordingSession: Identifiable, Codable {
         summary = try container.decode(String.self, forKey: .summary)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         segments = try container.decodeIfPresent([TranscriptSegment].self, forKey: .segments) ?? []
+        notes = try container.decodeIfPresent(String.self, forKey: .notes) ?? ""
     }
 
     /// Resolve the 16kHz Whisper audio file URL (for transcription)

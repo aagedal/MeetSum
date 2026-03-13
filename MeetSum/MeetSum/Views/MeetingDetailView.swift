@@ -10,8 +10,10 @@ import SwiftUI
 struct MeetingDetailView: View {
     @ObservedObject var viewModel: MeetingViewModel
     @ObservedObject var modelManager: ModelManager
-    @Binding var showingSettings: Bool
     @Binding var selectedTab: Int
+    @Environment(\.openWindow) private var openWindow
+    @State private var isEditingTitle = false
+    @State private var editableTitle = ""
 
     var body: some View {
         ZStack {
@@ -39,14 +41,30 @@ struct MeetingDetailView: View {
                         .padding(.horizontal)
                 }
 
-                // Content based on selected tab
-                if selectedTab == 0 {
-                    transcriptTab
-                        .padding(.horizontal)
-                } else {
-                    summaryTab
-                        .padding(.horizontal)
+                // Content: tab + notes side-by-side
+                HStack(alignment: .top, spacing: 16) {
+                    // Tab content (transcript or summary)
+                    if selectedTab == 0 {
+                        transcriptTab
+                    } else {
+                        summaryTab
+                    }
+
+                    // Notes panel (always visible, persists across tabs)
+                    NotesView(
+                        text: $viewModel.notes,
+                        isRecording: viewModel.isRecording,
+                        currentTimestamp: {
+                            let total = Int(viewModel.currentRecordingTimeInterval)
+                            let m = total / 60
+                            let s = total % 60
+                            return "\(m):\(String(format: "%02d", s))"
+                        },
+                        onTextChange: viewModel.isNewMeetingMode ? nil : { viewModel.saveNotes() }
+                    )
+                    .frame(minWidth: 250, idealWidth: 300, maxWidth: 400)
                 }
+                .padding(.horizontal)
             }
             .padding()
         }
@@ -54,15 +72,32 @@ struct MeetingDetailView: View {
 
     // MARK: - Header
 
+    private var canEditTitle: Bool {
+        viewModel.isNewMeetingMode || (!viewModel.isRecording && recordingSession != nil)
+    }
+
+    private var recordingSession: RecordingSession? {
+        viewModel.recordingSession
+    }
+
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                if let session = viewModel.recordingSession {
-                    Text(session.title)
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                if isEditingTitle {
+                    TextField("Meeting title", text: $editableTitle, onCommit: {
+                        viewModel.renameMeeting(editableTitle)
+                        isEditingTitle = false
+                    })
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .textFieldStyle(.plain)
                 } else {
-                    Text("New Meeting")
+                    Text(viewModel.recordingSession?.title ?? "New Meeting")
                         .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .onTapGesture(count: 2) {
+                            guard canEditTitle else { return }
+                            editableTitle = viewModel.recordingSession?.title ?? "New Meeting"
+                            isEditingTitle = true
+                        }
                 }
             }
 
@@ -334,7 +369,7 @@ struct MeetingDetailView: View {
             Spacer()
 
             Button("Open Settings") {
-                showingSettings = true
+                openWindow(id: "settings")
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -364,7 +399,7 @@ struct MeetingDetailView: View {
 
             if message.contains("not found") {
                 Button("Open Settings") {
-                    showingSettings = true
+                    openWindow(id: "settings")
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)

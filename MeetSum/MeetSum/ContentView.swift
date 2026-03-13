@@ -8,22 +8,20 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var modelManager = ModelManager()
-    @StateObject private var meetingStore = MeetingStore()
+    @ObservedObject var modelManager: ModelManager
+    @ObservedObject var meetingStore: MeetingStore
     @StateObject private var viewModel: MeetingViewModel
 
-    @State private var showingSettings = false
     @State private var showingModelSetup = false
     @State private var selectedTab: Int = 0
     @State private var captureMicrophone: Bool = ModelSettings.captureMicrophone
     @State private var captureSystemAudio: Bool = ModelSettings.captureSystemAudio
+    @Environment(\.openWindow) private var openWindow
 
-    init() {
-        let modelMgr = ModelManager()
-        let store = MeetingStore()
-        _modelManager = StateObject(wrappedValue: modelMgr)
-        _meetingStore = StateObject(wrappedValue: store)
-        _viewModel = StateObject(wrappedValue: MeetingViewModel(modelManager: modelMgr, meetingStore: store))
+    init(modelManager: ModelManager, meetingStore: MeetingStore) {
+        self.modelManager = modelManager
+        self.meetingStore = meetingStore
+        _viewModel = StateObject(wrappedValue: MeetingViewModel(modelManager: modelManager, meetingStore: meetingStore))
     }
 
     var body: some View {
@@ -38,14 +36,10 @@ struct ContentView: View {
             MeetingDetailView(
                 viewModel: viewModel,
                 modelManager: modelManager,
-                showingSettings: $showingSettings,
                 selectedTab: $selectedTab
             )
         }
         .frame(minWidth: 900, minHeight: 600)
-        .sheet(isPresented: $showingSettings) {
-            SettingsView(modelManager: modelManager)
-        }
         .sheet(isPresented: $showingModelSetup) {
             ModelSetupView(modelManager: modelManager, isPresented: $showingModelSetup)
         }
@@ -132,7 +126,7 @@ struct ContentView: View {
 
             ToolbarItem(placement: .automatic) {
                 Button(action: {
-                    showingSettings = true
+                    openWindow(id: "settings")
                 }) {
                     Label("Settings", systemImage: "gearshape")
                 }
@@ -149,5 +143,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    ContentView(modelManager: ModelManager(), meetingStore: MeetingStore())
 }

@@ -25,6 +25,7 @@ class MeetingViewModel: ObservableObject {
     @Published var liveTranscription: String = ""
     @Published var isNewMeetingMode = true
     @Published var liveSegments: [TranscriptSegment] = []
+    @Published var notes: String = ""
     @Published var isSummarizing = false
     @Published var summarizationProgress: String = ""
     @Published var processingMeetingIds: Set<UUID> = []
@@ -60,6 +61,10 @@ class MeetingViewModel: ObservableObject {
 
     var isPlaying: Bool {
         playbackManager.isPlaying
+    }
+
+    var currentRecordingTimeInterval: TimeInterval {
+        recordingManager.recordingTime
     }
 
     var transcription: String {
@@ -172,7 +177,8 @@ class MeetingViewModel: ObservableObject {
         recordingSession = RecordingSession(
             audioFilename: audioFilename,
             playbackAudioFilename: playbackFilename,
-            duration: duration
+            duration: duration,
+            notes: notes
         )
 
         Logger.info("Recording session created with duration: \(totalDuration)", category: Logger.ui)
@@ -204,7 +210,7 @@ class MeetingViewModel: ObservableObject {
             processingMeetingIds.insert(meetingId)
             defer { processingMeetingIds.remove(meetingId) }
 
-            if let summaryText = await summarizationManager.summarize(transcription: liveTranscription) {
+            if let summaryText = await summarizationManager.summarize(transcription: liveTranscription, notes: notes) {
                 updateMeetingInStore(id: meetingId) { $0.summary = summaryText }
                 Logger.info("Processing pipeline completed successfully", category: Logger.processing)
             } else {
@@ -239,6 +245,7 @@ class MeetingViewModel: ObservableObject {
         errorMessage = nil
         liveTranscription = ""
         liveSegments = []
+        notes = ""
         isNewMeetingMode = true
         meetingStore.selectedMeetingId = nil
     }
@@ -252,12 +259,34 @@ class MeetingViewModel: ObservableObject {
         totalDuration = meeting.duration > 0 ? AudioUtils.formatDuration(meeting.duration) : ""
         liveTranscription = ""
         liveSegments = []
+        notes = meeting.notes
         errorMessage = nil
         isNewMeetingMode = false
 
         // Load audio for playback if available (prefer HQ file)
         if let audioURL = meeting.playbackAudioFileURL {
             playbackManager.loadAudio(url: audioURL)
+        }
+    }
+
+    // MARK: - Notes & Title
+
+    func saveNotes() {
+        guard let id = recordingSession?.id else { return }
+        updateMeetingInStore(id: id) { $0.notes = self.notes }
+    }
+
+    func renameMeeting(_ newTitle: String) {
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        if let id = recordingSession?.id, !isNewMeetingMode {
+            // Saved meeting — update via store
+            meetingStore.renameMeeting(id: id, newTitle: trimmed)
+            recordingSession?.title = trimmed
+        } else {
+            // New meeting mode — update session directly
+            recordingSession?.title = trimmed
         }
     }
 
@@ -331,7 +360,7 @@ class MeetingViewModel: ObservableObject {
             if let text = await transcriptionManager.transcribe(audioURL: destURL) {
                 updateMeetingInStore(id: meetingId) { $0.transcription = text }
 
-                if let summaryText = await summarizationManager.summarize(transcription: text) {
+                if let summaryText = await summarizationManager.summarize(transcription: text, notes: "") {
                     updateMeetingInStore(id: meetingId) { $0.summary = summaryText }
                 }
             }
@@ -394,6 +423,7 @@ class MeetingViewModel: ObservableObject {
         }
         let meetingId = session.id
         let transcriptionText = session.transcription
+        let notesText = session.notes
         Logger.info("Re-summarizing transcription", category: Logger.ui)
 
         processingMeetingIds.insert(meetingId)
@@ -401,7 +431,7 @@ class MeetingViewModel: ObservableObject {
         Task {
             defer { processingMeetingIds.remove(meetingId) }
 
-            guard let summaryText = await summarizationManager.summarize(transcription: transcriptionText) else {
+            guard let summaryText = await summarizationManager.summarize(transcription: transcriptionText, notes: notesText) else {
                 errorMessage = "Re-summarization failed"
                 return
             }

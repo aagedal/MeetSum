@@ -10,7 +10,6 @@ DerivedData/
 # Model binaries
 *.bin
 *.gguf
-models/
 
 # App binaries
 MeetSum/MeetSum/bin/

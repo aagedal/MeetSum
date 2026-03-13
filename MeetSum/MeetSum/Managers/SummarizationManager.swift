@@ -74,7 +74,7 @@ class SummarizationManager: ObservableObject {
     }
 
     /// Generate a summary from transcription text using the selected engine
-    func summarize(transcription: String) async -> String? {
+    func summarize(transcription: String, notes: String = "") async -> String? {
         guard !transcription.isEmpty else {
             Logger.warning("Cannot summarize empty transcription", category: Logger.processing)
             return nil
@@ -90,18 +90,36 @@ class SummarizationManager: ObservableObject {
         let result: String?
         switch engine {
         case .mlx:
-            result = await summarizeWithMLX(transcription: transcription)
+            result = await summarizeWithMLX(transcription: transcription, notes: notes)
         case .appleIntelligence:
-            result = await summarizeWithAppleIntelligence(transcription: transcription)
+            result = await summarizeWithAppleIntelligence(transcription: transcription, notes: notes)
         }
 
         isSummarizing = false
         return result
     }
 
+    // MARK: - Prompt Building
+
+    private static func buildUserPrompt(transcription: String, notes: String) -> String {
+        if notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Please provide a concise summary of the following meeting transcription:\n\n\(transcription)"
+        } else {
+            return """
+            Please provide a concise summary of the following meeting transcription and user notes:
+
+            Transcript:
+            \(transcription)
+
+            User Notes (timestamps correlate with transcript timestamps):
+            \(notes)
+            """
+        }
+    }
+
     // MARK: - MLX Summarization
 
-    private func summarizeWithMLX(transcription: String) async -> String? {
+    private func summarizeWithMLX(transcription: String, notes: String = "") async -> String? {
         progress = "Loading model..."
 
         // Ensure model is loaded
@@ -118,10 +136,11 @@ class SummarizationManager: ObservableObject {
         progress = "Generating summary..."
 
         let systemPrompt = ModelSettings.summarizationSystemPrompt
+        let userContent = Self.buildUserPrompt(transcription: transcription, notes: notes)
         let userInput = UserInput(
             messages: [
                 ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": "Please provide a concise summary of the following meeting transcription:\n\n\(transcription)"]
+                ["role": "user", "content": userContent]
             ]
         )
 
@@ -166,16 +185,15 @@ class SummarizationManager: ObservableObject {
 
     // MARK: - Apple Intelligence Summarization
 
-    private func summarizeWithAppleIntelligence(transcription: String) async -> String? {
+    private func summarizeWithAppleIntelligence(transcription: String, notes: String = "") async -> String? {
         progress = "Summarizing with Apple Intelligence..."
 
         let systemPrompt = ModelSettings.summarizationSystemPrompt
+        let userContent = Self.buildUserPrompt(transcription: transcription, notes: notes)
         let prompt = """
         \(systemPrompt)
 
-        Please provide a concise summary of the following meeting transcription:
-
-        \(transcription)
+        \(userContent)
         """
 
         do {

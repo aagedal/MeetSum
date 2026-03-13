@@ -30,42 +30,49 @@ enum SecurityBookmarkError: LocalizedError {
 
 /// Manages security-scoped bookmark storage and access
 class SecurityBookmarkManager {
-    
+
+    private let bookmarkKey: String
     private var currentAccessedURL: URL?
-    
+
+    /// Initialize with a specific bookmark storage key
+    /// - Parameter bookmarkKey: UserDefaults key for storing the bookmark data
+    init(bookmarkKey: String = "modelDirectoryBookmark") {
+        self.bookmarkKey = bookmarkKey
+    }
+
     // MARK: - Save Bookmark
-    
+
     /// Save a security-scoped bookmark for the given URL
     /// - Parameter url: URL to save bookmark for
     /// - Returns: true if successful
     func saveBookmark(for url: URL) -> Bool {
-        Logger.info("Saving security-scoped bookmark for: \(url.path)", category: Logger.general)
-        
+        Logger.info("Saving security-scoped bookmark (\(bookmarkKey)) for: \(url.path)", category: Logger.general)
+
         do {
             let bookmarkData = try url.bookmarkData(
                 options: .withSecurityScope,
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )
-            
-            ModelSettings.modelDirectoryBookmark = bookmarkData
+
+            UserDefaults.standard.set(bookmarkData, forKey: bookmarkKey)
             Logger.info("Security-scoped bookmark saved successfully", category: Logger.general)
             return true
-            
+
         } catch {
             Logger.error("Failed to create security-scoped bookmark", error: error, category: Logger.general)
             return false
         }
     }
-    
+
     // MARK: - Restore Bookmark
-    
+
     /// Restore a security-scoped bookmark from storage
     /// - Returns: URL if bookmark was restored successfully, nil otherwise
     func restoreBookmark() -> URL? {
-        Logger.debug("Attempting to restore security-scoped bookmark", category: Logger.general)
-        
-        guard let bookmarkData = ModelSettings.modelDirectoryBookmark else {
+        Logger.debug("Attempting to restore security-scoped bookmark (\(bookmarkKey))", category: Logger.general)
+
+        guard let bookmarkData = UserDefaults.standard.data(forKey: bookmarkKey) else {
             Logger.debug("No bookmark data found", category: Logger.general)
             return nil
         }

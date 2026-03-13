@@ -195,9 +195,12 @@ class AudioRecordingManager: NSObject, ObservableObject {
                 // Start the engine (mic modes) or drain timer (system-only mode)
                 if let engine = engine {
                     try engine.start()
-                } else if self.systemAudioCapture != nil {
-                    // System-audio-only: use a timer to drain the ring buffer
-                    await MainActor.run { self.startDrainTimer() }
+                } else {
+                    let hasSystemAudio = await MainActor.run { self.systemAudioCapture != nil }
+                    if hasSystemAudio {
+                        // System-audio-only: use a timer to drain the ring buffer
+                        await MainActor.run { self.startDrainTimer() }
+                    }
                 }
 
                 await MainActor.run {

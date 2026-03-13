@@ -38,6 +38,7 @@ struct ModelSettings {
 
     private enum Keys {
         static let modelDirectoryBookmark = "modelDirectoryBookmark"
+        static let mlxModelDirectoryBookmark = "mlxModelDirectoryBookmark"
         static let selectedWhisperModel = "selectedWhisperModel"
         static let selectedMLXModel = "selectedMLXModel"
         static let summarizationEngine = "summarizationEngine"
@@ -60,6 +61,16 @@ struct ModelSettings {
         set {
             defaults.set(newValue, forKey: Keys.modelDirectoryBookmark)
             Logger.info("Model directory bookmark saved", category: Logger.general)
+        }
+    }
+
+    static var mlxModelDirectoryBookmark: Data? {
+        get {
+            defaults.data(forKey: Keys.mlxModelDirectoryBookmark)
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.mlxModelDirectoryBookmark)
+            Logger.info("MLX model directory bookmark saved", category: Logger.general)
         }
     }
 
@@ -158,6 +169,7 @@ struct ModelSettings {
 
     static func reset() {
         defaults.removeObject(forKey: Keys.modelDirectoryBookmark)
+        defaults.removeObject(forKey: Keys.mlxModelDirectoryBookmark)
         defaults.removeObject(forKey: Keys.selectedWhisperModel)
         defaults.removeObject(forKey: Keys.selectedMLXModel)
         defaults.removeObject(forKey: Keys.summarizationEngine)

@@ -26,7 +26,7 @@ struct ModelSetupView: View {
 
             // Directory Selection
             VStack(spacing: 12) {
-                if let directory = modelManager.modelDirectory {
+                if let directory = modelManager.whisperModelDirectory {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.green)
