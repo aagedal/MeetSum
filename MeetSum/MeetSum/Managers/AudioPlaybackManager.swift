@@ -21,9 +21,10 @@ class AudioPlaybackManager: NSObject, ObservableObject {
     @Published var error: Error?
     
     // MARK: - Private Properties
-    
+
     private var audioPlayer: AVAudioPlayer?
     private var playbackURL: URL?
+    private var timeUpdateTimer: Timer?
     
     // MARK: - Public Methods
     
@@ -52,10 +53,11 @@ class AudioPlaybackManager: NSObject, ObservableObject {
             Logger.warning("Cannot play: no audio loaded", category: Logger.audio)
             return
         }
-        
+
         Logger.info("Starting audio playback", category: Logger.audio)
         player.play()
         isPlaying = true
+        startTimeUpdateTimer()
     }
     
     /// Pause the audio playback
@@ -64,10 +66,11 @@ class AudioPlaybackManager: NSObject, ObservableObject {
             Logger.warning("Cannot pause: no audio loaded", category: Logger.audio)
             return
         }
-        
+
         Logger.info("Pausing audio playback", category: Logger.audio)
         player.pause()
         isPlaying = false
+        stopTimeUpdateTimer()
         currentTime = player.currentTime
     }
     
@@ -77,14 +80,23 @@ class AudioPlaybackManager: NSObject, ObservableObject {
             Logger.warning("Cannot stop: no audio loaded", category: Logger.audio)
             return
         }
-        
+
         Logger.info("Stopping audio playback", category: Logger.audio)
         player.stop()
         player.currentTime = 0
         isPlaying = false
+        stopTimeUpdateTimer()
         currentTime = 0
     }
-    
+
+    /// Seek to a specific time
+    func seek(to time: TimeInterval) {
+        guard let player = audioPlayer else { return }
+        let clampedTime = max(0, min(time, player.duration))
+        player.currentTime = clampedTime
+        currentTime = clampedTime
+    }
+
     /// Unload the current audio
     func unload() {
         Logger.debug("Unloading audio player", category: Logger.audio)
@@ -92,6 +104,23 @@ class AudioPlaybackManager: NSObject, ObservableObject {
         audioPlayer = nil
         playbackURL = nil
         duration = 0
+    }
+
+    // MARK: - Timer
+
+    private func startTimeUpdateTimer() {
+        stopTimeUpdateTimer()
+        timeUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let player = self.audioPlayer, self.isPlaying else { return }
+                self.currentTime = player.currentTime
+            }
+        }
+    }
+
+    private func stopTimeUpdateTimer() {
+        timeUpdateTimer?.invalidate()
+        timeUpdateTimer = nil
     }
 }
 

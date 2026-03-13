@@ -67,6 +67,14 @@ class MeetingViewModel: ObservableObject {
         playbackManager.isPlaying
     }
 
+    var playbackCurrentTime: TimeInterval {
+        playbackManager.currentTime
+    }
+
+    var playbackDuration: TimeInterval {
+        playbackManager.duration
+    }
+
     var currentRecordingTimeInterval: TimeInterval {
         recordingManager.recordingTime
     }
@@ -103,6 +111,18 @@ class MeetingViewModel: ObservableObject {
 
         // Forward playback state changes to trigger UI updates
         playbackManager.$isPlaying
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
+        playbackManager.$currentTime
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
+        playbackManager.$duration
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
             }
@@ -228,7 +248,8 @@ class MeetingViewModel: ObservableObject {
 
     func playRecording() {
         Logger.info("User started playback", category: Logger.ui)
-        if let url = recordingSession?.playbackAudioFileURL {
+        // Only load if not already loaded
+        if playbackManager.duration == 0, let url = recordingSession?.playbackAudioFileURL {
             playbackManager.loadAudio(url: url)
         }
         playbackManager.play()
@@ -237,6 +258,15 @@ class MeetingViewModel: ObservableObject {
     func pausePlayback() {
         Logger.info("User paused playback", category: Logger.ui)
         playbackManager.pause()
+    }
+
+    func stopPlayback() {
+        Logger.info("User stopped playback", category: Logger.ui)
+        playbackManager.stop()
+    }
+
+    func seekPlayback(to time: TimeInterval) {
+        playbackManager.seek(to: time)
     }
 
     func pauseRecording() {

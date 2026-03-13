@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
     @ObservedObject var modelManager: ModelManager
@@ -16,6 +17,7 @@ struct ContentView: View {
     @State private var selectedTab: Int = 0
     @State private var captureMicrophone: Bool = ModelSettings.captureMicrophone
     @State private var captureSystemAudio: Bool = ModelSettings.captureSystemAudio
+    @State private var spaceKeyMonitor: Any?
     @Environment(\.openWindow) private var openWindow
 
     init(modelManager: ModelManager, meetingStore: MeetingStore) {
@@ -33,11 +35,21 @@ struct ContentView: View {
             })
             .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 360)
         } detail: {
-            MeetingDetailView(
-                viewModel: viewModel,
-                modelManager: modelManager,
-                selectedTab: $selectedTab
-            )
+            VStack(spacing: 0) {
+                // Playback timeline bar
+                if !viewModel.isRecording && !viewModel.isPaused && !viewModel.isNewMeetingMode &&
+                    viewModel.recordingSession?.playbackAudioFileURL != nil {
+                    PlaybackTimelineView(viewModel: viewModel)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    Divider()
+                }
+
+                MeetingDetailView(
+                    viewModel: viewModel,
+                    modelManager: modelManager,
+                    selectedTab: $selectedTab
+                )
+            }
         }
         .frame(minWidth: 900, minHeight: 600)
         .sheet(isPresented: $showingModelSetup) {
@@ -199,6 +211,37 @@ struct ContentView: View {
                 viewModel.loadMeeting(meeting)
             } else if newId == nil {
                 viewModel.prepareNewMeeting()
+            }
+        }
+        .onAppear {
+            spaceKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                // Space key = keyCode 49
+                guard event.keyCode == 49 else { return event }
+
+                // Don't intercept if a text field or text view is focused
+                if let responder = event.window?.firstResponder,
+                   responder is NSTextView || responder is NSTextField {
+                    return event
+                }
+
+                // Only act when a playback file is available and not recording
+                guard !viewModel.isRecording && !viewModel.isPaused && !viewModel.isNewMeetingMode,
+                      viewModel.recordingSession?.playbackAudioFileURL != nil else {
+                    return event
+                }
+
+                if viewModel.isPlaying {
+                    viewModel.pausePlayback()
+                } else {
+                    viewModel.playRecording()
+                }
+                return nil // consume the event
+            }
+        }
+        .onDisappear {
+            if let monitor = spaceKeyMonitor {
+                NSEvent.removeMonitor(monitor)
+                spaceKeyMonitor = nil
             }
         }
     }
