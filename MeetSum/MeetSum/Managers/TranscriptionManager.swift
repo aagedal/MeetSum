@@ -99,10 +99,17 @@ class TranscriptionManager: ObservableObject {
 
             do {
                 try process.run()
+
+                // Read pipe data BEFORE waitUntilExit to avoid deadlock.
+                // If the process writes more than the pipe buffer (~64KB) to
+                // stderr/stdout, it blocks waiting for the reader. If we call
+                // waitUntilExit() first, both sides block forever.
+                let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                let _ = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+
                 process.waitUntilExit()
 
                 let exitCode = process.terminationStatus
-                let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
                 let stderrOutput = String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
                 Logger.info("Whisper process completed with exit code: \(exitCode)", category: Logger.transcription)

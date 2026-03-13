@@ -192,6 +192,17 @@ struct MeetingDetailView: View {
                     .help("Re-transcribe audio")
 
                     Button(action: {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(viewModel.transcription, forType: .string)
+                    }) {
+                        Label("Copy", systemImage: "doc.on.doc")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Copy transcription to clipboard")
+
+                    Button(action: {
                         viewModel.exportTranscription()
                     }) {
                         Label("Export", systemImage: "square.and.arrow.up")
@@ -339,6 +350,18 @@ struct MeetingDetailView: View {
                     .controlSize(.small)
                     .disabled(viewModel.isRecording || viewModel.isPaused || viewModel.isProcessing)
                     .help("Re-summarize transcription")
+
+                    Button(action: {
+                        let cleaned = ThinkingTagParser.parse(viewModel.summary).visibleContent
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(cleaned, forType: .string)
+                    }) {
+                        Label("Copy", systemImage: "doc.on.doc")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Copy summary to clipboard")
 
                     Menu {
                         Button("Export as Text") {

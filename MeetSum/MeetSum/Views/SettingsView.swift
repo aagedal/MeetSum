@@ -24,6 +24,7 @@ struct SettingsView: View {
     @State private var selectedWhisperModel: String = ModelSettings.selectedWhisperModel
     @State private var disableThinking: Bool = ModelSettings.disableModelThinking
     @State private var transcriptionLanguage: String = ModelSettings.transcriptionLanguage
+    @State private var modelToDelete: ModelMetadata?
 
     var body: some View {
         TabView {
@@ -105,6 +106,22 @@ struct SettingsView: View {
             allowsMultipleSelection: true
         ) { result in
             handleModelImport(result)
+        }
+        .alert("Delete Model?", isPresented: Binding(
+            get: { modelToDelete != nil },
+            set: { if !$0 { modelToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { modelToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let model = modelToDelete {
+                    deleteModel(model)
+                    modelToDelete = nil
+                }
+            }
+        } message: {
+            if let model = modelToDelete {
+                Text("This will permanently delete \"\(model.name)\" (\(model.sizeFormatted)).")
+            }
         }
     }
 
@@ -301,7 +318,7 @@ struct SettingsView: View {
             }
 
             Button(action: {
-                deleteModel(model)
+                modelToDelete = model
             }) {
                 Image(systemName: "trash")
                     .foregroundColor(.red)
@@ -325,64 +342,9 @@ struct SettingsView: View {
                 .foregroundColor(.secondary)
 
             ForEach(modelManager.customModels) { model in
-                customModelRow(model)
+                installedModelRow(model)
             }
         }
-    }
-
-    private func customModelRow(_ model: ModelMetadata) -> some View {
-        let isActive = selectedWhisperModel == model.id
-
-        return HStack {
-            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
-                .foregroundColor(isActive ? .green : .secondary)
-                .frame(width: 30)
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(model.name)
-                        .font(.subheadline.weight(.medium))
-                    if isActive {
-                        Text("Active")
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.green.opacity(0.15))
-                            .foregroundColor(.green)
-                            .cornerRadius(4)
-                    }
-                }
-                Text(model.description)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            Text(model.sizeFormatted)
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            if !isActive {
-                Button("Use") {
-                    selectedWhisperModel = model.id
-                    ModelSettings.selectedWhisperModel = model.id
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-
-            Button(action: {
-                deleteModel(model)
-            }) {
-                Image(systemName: "trash")
-                    .foregroundColor(.red)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding()
-        .background(isActive ? Color.blue.opacity(0.05) : Color(NSColor.controlBackgroundColor))
-        .cornerRadius(8)
     }
 
     // MARK: - Summarization Engine Section

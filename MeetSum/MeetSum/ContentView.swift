@@ -129,25 +129,7 @@ struct ContentView: View {
                                     .font(.caption)
                                     .foregroundColor(.orange)
 
-                                Button(action: {
-                                    captureMicrophone.toggle()
-                                    ModelSettings.captureMicrophone = captureMicrophone
-                                }) {
-                                    Image(systemName: captureMicrophone ? "mic.fill" : "mic.slash")
-                                        .foregroundColor(captureMicrophone ? .blue : .secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .help(captureMicrophone ? "Microphone on" : "Microphone off")
-
-                                Button(action: {
-                                    captureSystemAudio.toggle()
-                                    ModelSettings.captureSystemAudio = captureSystemAudio
-                                }) {
-                                    Image(systemName: captureSystemAudio ? "speaker.wave.2.fill" : "speaker.slash")
-                                        .foregroundColor(captureSystemAudio ? .blue : .secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .help(captureSystemAudio ? "System audio on (Teams, FaceTime)" : "System audio off")
+                                AudioSourceToggles(captureMicrophone: $captureMicrophone, captureSystemAudio: $captureSystemAudio)
                             }
                         } else if viewModel.isNewMeetingMode && viewModel.recordingSession?.playbackAudioFileURL == nil {
                             HStack(spacing: 8) {
@@ -159,25 +141,7 @@ struct ContentView: View {
                                 }
                                 .disabled(!captureMicrophone && !captureSystemAudio)
 
-                                Button(action: {
-                                    captureMicrophone.toggle()
-                                    ModelSettings.captureMicrophone = captureMicrophone
-                                }) {
-                                    Image(systemName: captureMicrophone ? "mic.fill" : "mic.slash")
-                                        .foregroundColor(captureMicrophone ? .blue : .secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .help(captureMicrophone ? "Microphone on" : "Microphone off")
-
-                                Button(action: {
-                                    captureSystemAudio.toggle()
-                                    ModelSettings.captureSystemAudio = captureSystemAudio
-                                }) {
-                                    Image(systemName: captureSystemAudio ? "speaker.wave.2.fill" : "speaker.slash")
-                                        .foregroundColor(captureSystemAudio ? .blue : .secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .help(captureSystemAudio ? "System audio on (Teams, FaceTime)" : "System audio off")
+                                AudioSourceToggles(captureMicrophone: $captureMicrophone, captureSystemAudio: $captureSystemAudio)
                             }
                         } else if viewModel.recordingSession?.playbackAudioFileURL != nil {
                             Button(action: {
@@ -253,6 +217,35 @@ struct ContentView: View {
             // Flush any pending notes so they aren't lost on window close / app quit
             viewModel.saveNotes()
         }
+    }
+}
+
+// MARK: - Audio Source Toggles
+
+private struct AudioSourceToggles: View {
+    @Binding var captureMicrophone: Bool
+    @Binding var captureSystemAudio: Bool
+
+    var body: some View {
+        Button(action: {
+            captureMicrophone.toggle()
+            ModelSettings.captureMicrophone = captureMicrophone
+        }) {
+            Image(systemName: captureMicrophone ? "mic.fill" : "mic.slash")
+                .foregroundColor(captureMicrophone ? .blue : .secondary)
+        }
+        .buttonStyle(.plain)
+        .help(captureMicrophone ? "Microphone on" : "Microphone off")
+
+        Button(action: {
+            captureSystemAudio.toggle()
+            ModelSettings.captureSystemAudio = captureSystemAudio
+        }) {
+            Image(systemName: captureSystemAudio ? "speaker.wave.2.fill" : "speaker.slash")
+                .foregroundColor(captureSystemAudio ? .blue : .secondary)
+        }
+        .buttonStyle(.plain)
+        .help(captureSystemAudio ? "System audio on (Teams, FaceTime)" : "System audio off")
     }
 }
 

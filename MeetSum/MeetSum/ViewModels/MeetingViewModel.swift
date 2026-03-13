@@ -564,14 +564,14 @@ class MeetingViewModel: ObservableObject {
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [contentType]
         savePanel.nameFieldStringValue = filename
-        savePanel.begin { response in
+        savePanel.begin { [weak self] response in
             if response == .OK, let url = savePanel.url {
                 do {
                     try text.write(to: url, atomically: true, encoding: .utf8)
                     Logger.info("Exported file to: \(url.path)", category: Logger.ui)
                 } catch {
                     Logger.error("Failed to export file", error: error, category: Logger.ui)
-                    self.errorMessage = "Failed to export file: \(error.localizedDescription)"
+                    self?.errorMessage = "Failed to export file: \(error.localizedDescription)"
                 }
             }
         }

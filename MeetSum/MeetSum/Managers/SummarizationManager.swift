@@ -27,6 +27,7 @@ class SummarizationManager: ObservableObject {
 
     private var modelContainer: ModelContainer?
     private let modelManager: ModelManager
+    private var loadedModelId: String?
 
     // MARK: - Initialization
 
@@ -55,6 +56,7 @@ class SummarizationManager: ObservableObject {
             }
 
             modelContainer = container
+            loadedModelId = modelId
             isModelLoaded = true
             modelLoadProgress = "Model loaded"
             Logger.info("MLX model loaded successfully: \(modelId)", category: Logger.processing)
@@ -69,6 +71,7 @@ class SummarizationManager: ObservableObject {
     /// Unload the current model (for switching models)
     func unloadModel() {
         modelContainer = nil
+        loadedModelId = nil
         isModelLoaded = false
         modelLoadProgress = ""
     }
@@ -121,6 +124,13 @@ class SummarizationManager: ObservableObject {
 
     private func summarizeWithMLX(transcription: String, notes: String = "") async -> String? {
         progress = "Loading model..."
+
+        // Unload stale model if user switched models in Settings
+        let currentModelId = ModelSettings.selectedMLXModel
+        if modelContainer != nil && loadedModelId != currentModelId {
+            Logger.info("MLX model changed from \(loadedModelId ?? "nil") to \(currentModelId), reloading", category: Logger.processing)
+            unloadModel()
+        }
 
         // Ensure model is loaded
         if modelContainer == nil {

@@ -668,8 +668,8 @@ class AudioRecordingManager: NSObject, ObservableObject {
 
     private func startTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self = self, let start = self.startTime else { return }
             Task { @MainActor in
+                guard let self, let start = self.startTime else { return }
                 self.recordingTime = self.accumulatedTime + Date().timeIntervalSince(start)
             }
         }
