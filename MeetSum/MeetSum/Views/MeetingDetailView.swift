@@ -35,6 +35,12 @@ struct MeetingDetailView: View {
                         .padding(.horizontal)
                 }
 
+                // System audio capture failure warning
+                if viewModel.systemAudioFailed && (viewModel.isRecording || viewModel.isPaused) {
+                    systemAudioWarning
+                        .padding(.horizontal)
+                }
+
                 // Error card
                 if let error = viewModel.errorMessage {
                     errorCard(error)
@@ -425,6 +431,29 @@ struct MeetingDetailView: View {
         }
         .padding()
         .background(Color.yellow.opacity(0.1))
+        .cornerRadius(12)
+    }
+
+    // MARK: - System Audio Warning
+
+    private var systemAudioWarning: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "speaker.slash.fill")
+                .foregroundColor(.orange)
+                .font(.title2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("System Audio Unavailable")
+                    .font(.headline)
+                Text("Could not capture system audio. Recording will continue with microphone only. Check that screen recording permission is granted in System Settings > Privacy & Security.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding()
+        .background(Color.orange.opacity(0.1))
         .cornerRadius(12)
     }
 

@@ -36,6 +36,8 @@ class AudioRecordingManager: NSObject, ObservableObject {
     @Published var error: Error?
     /// Published when a new segment file is ready for transcription
     @Published var newSegment: SegmentInfo?
+    /// True when system audio capture was requested but failed to start
+    @Published var systemAudioFailed = false
 
     // MARK: - Private Properties
 
@@ -95,6 +97,7 @@ class AudioRecordingManager: NSObject, ObservableObject {
         Logger.info("Starting audio recording", category: Logger.audio)
 
         error = nil
+        systemAudioFailed = false
         guard recordingState == .idle else { return }
         recordingState = .starting
         accumulatedTime = 0
@@ -409,6 +412,9 @@ class AudioRecordingManager: NSObject, ObservableObject {
             }
         } catch {
             Logger.warning("System audio capture failed: \(error.localizedDescription)", category: Logger.audio)
+            await MainActor.run {
+                self.systemAudioFailed = true
+            }
         }
     }
 

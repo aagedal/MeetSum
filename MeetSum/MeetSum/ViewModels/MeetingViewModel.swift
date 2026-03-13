@@ -79,6 +79,10 @@ class MeetingViewModel: ObservableObject {
         recordingManager.recordingTime
     }
 
+    var systemAudioFailed: Bool {
+        recordingManager.systemAudioFailed
+    }
+
     var transcription: String {
         recordingSession?.transcription ?? ""
     }
@@ -133,6 +137,13 @@ class MeetingViewModel: ObservableObject {
             .store(in: &cancellables)
 
         playbackManager.$duration
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
+        // Forward system audio failure state to trigger UI updates
+        recordingManager.$systemAudioFailed
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
             }
