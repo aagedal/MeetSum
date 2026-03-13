@@ -60,9 +60,11 @@ class AudioRecordingManager: NSObject, ObservableObject {
     // High-quality playback recording
     private var playbackFile: AVAudioFile?
 
-    // Cached audio converter (expensive to create — reuse across callbacks)
+    // Cached audio converters (expensive to create — reuse across callbacks)
     private var cachedConverter: AVAudioConverter?
     private var cachedConverterSourceFormat: AVAudioFormat?
+    private var cachedMixedConverter: AVAudioConverter?
+    private var cachedMixedConverterSourceFormat: AVAudioFormat?
 
     // Segment rotation
     private let segmentDuration: TimeInterval = 10.0
@@ -253,20 +255,23 @@ class AudioRecordingManager: NSObject, ObservableObject {
         audioEngine?.stop()
         audioEngine = nil
 
-        // Stop system audio capture
-        let capture = systemAudioCapture
-        systemAudioCapture = nil
-        mixingBuffer?.reset()
-        mixingBuffer = nil
-        if let capture = capture {
-            Task { await capture.stopCapture() }
-        }
-
-        // Finalize current segment but keep recording file open
+        // Finalize current segment and clean up mixing state on the segment queue,
+        // so in-flight tap callbacks complete before we nil out the buffer.
         segmentQueue.sync {
             self.finalizeCurrentSegment(publish: true)
             self.cachedConverter = nil
             self.cachedConverterSourceFormat = nil
+            self.cachedMixedConverter = nil
+            self.cachedMixedConverterSourceFormat = nil
+            self.mixingBuffer?.reset()
+            self.mixingBuffer = nil
+        }
+
+        // Stop system audio capture (after segment queue is drained)
+        let capture = systemAudioCapture
+        systemAudioCapture = nil
+        if let capture = capture {
+            Task { await capture.stopCapture() }
         }
 
         // Update WAV header for crash safety (but don't close the handle)
@@ -398,22 +403,25 @@ class AudioRecordingManager: NSObject, ObservableObject {
         audioEngine = nil
         recordingState = .idle
 
-        // Stop system audio capture
-        let capture = systemAudioCapture
-        systemAudioCapture = nil
-        mixingBuffer?.reset()
-        mixingBuffer = nil
-        if let capture = capture {
-            Task { await capture.stopCapture() }
-        }
-
-        // Finalize files
+        // Finalize files and clean up mixing state on the segment queue,
+        // so in-flight tap callbacks complete before we nil out the buffer.
         segmentQueue.sync {
             self.finalizeCurrentSegment(publish: true)
             self.finalizeRecordingFile()
             self.playbackFile = nil
             self.cachedConverter = nil
             self.cachedConverterSourceFormat = nil
+            self.cachedMixedConverter = nil
+            self.cachedMixedConverterSourceFormat = nil
+            self.mixingBuffer?.reset()
+            self.mixingBuffer = nil
+        }
+
+        // Stop system audio capture (after segment queue is drained)
+        let capture = systemAudioCapture
+        systemAudioCapture = nil
+        if let capture = capture {
+            Task { await capture.stopCapture() }
         }
 
         // Reset pause/resume state
@@ -486,7 +494,13 @@ class AudioRecordingManager: NSObject, ObservableObject {
     /// Process mic audio mixed with system audio: convert to Float32, mix, then write Int16 PCM
     private func processAudioBufferMixed(_ buffer: AVAudioPCMBuffer, from sourceFormat: AVAudioFormat) {
         let float32Format = AudioUtils.whisperFloat32Format
-        guard let converter = AVAudioConverter(from: sourceFormat, to: float32Format) else { return }
+
+        // Reuse converter if source format hasn't changed
+        if cachedMixedConverter == nil || cachedMixedConverterSourceFormat != sourceFormat {
+            cachedMixedConverter = AVAudioConverter(from: sourceFormat, to: float32Format)
+            cachedMixedConverterSourceFormat = sourceFormat
+        }
+        guard let converter = cachedMixedConverter else { return }
 
         let ratio = float32Format.sampleRate / sourceFormat.sampleRate
         let outputFrameCount = AVAudioFrameCount(Double(buffer.frameLength) * ratio)

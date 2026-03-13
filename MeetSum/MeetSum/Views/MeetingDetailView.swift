@@ -223,9 +223,10 @@ struct MeetingDetailView: View {
 
                 ScrollView {
                     if let segments = viewModel.recordingSession?.segments, !segments.isEmpty {
+                        let hasAudio = viewModel.recordingSession?.playbackAudioFileURL != nil
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(segments) { segment in
-                                segmentRow(segment)
+                                segmentRow(segment, seekable: hasAudio)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -263,12 +264,28 @@ struct MeetingDetailView: View {
 
     // MARK: - Segment Row
 
-    private func segmentRow(_ segment: TranscriptSegment) -> some View {
+    private func segmentRow(_ segment: TranscriptSegment, seekable: Bool = false) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(segment.timecode)
-                .font(.caption.monospacedDigit())
-                .foregroundColor(.secondary)
-                .frame(width: 40, alignment: .trailing)
+            if seekable {
+                Button(action: {
+                    viewModel.seekPlayback(to: segment.startTime)
+                    if !viewModel.isPlaying {
+                        viewModel.playRecording()
+                    }
+                }) {
+                    Text(segment.timecode)
+                        .font(.caption.monospacedDigit())
+                        .foregroundColor(.blue)
+                        .frame(width: 40, alignment: .trailing)
+                }
+                .buttonStyle(.plain)
+                .help("Jump to \(segment.timecode)")
+            } else {
+                Text(segment.timecode)
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(.secondary)
+                    .frame(width: 40, alignment: .trailing)
+            }
             Text(segment.text)
                 .font(.body)
                 .textSelection(.enabled)

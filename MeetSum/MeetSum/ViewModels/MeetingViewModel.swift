@@ -87,6 +87,16 @@ class MeetingViewModel: ObservableObject {
         recordingSession?.summary ?? ""
     }
 
+    /// Sanitized meeting title for use in export filenames
+    private var exportPrefix: String {
+        let title = recordingSession?.title ?? "meeting"
+        // Replace characters unsafe for filenames
+        let sanitized = title
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+        return sanitized
+    }
+
     // MARK: - Initialization
 
     init(modelManager: ModelManager, meetingStore: MeetingStore) {
@@ -427,21 +437,21 @@ class MeetingViewModel: ObservableObject {
     func exportTranscription() {
         guard !transcription.isEmpty else { return }
         Logger.info("User exporting transcription", category: Logger.ui)
-        exportText(transcription, filename: "transcription.txt")
+        exportText(transcription, filename: "\(exportPrefix)_transcription.txt")
     }
 
     func exportSummary() {
         guard !summary.isEmpty else { return }
         Logger.info("User exporting summary as text", category: Logger.ui)
         let cleaned = ThinkingTagParser.parse(summary).visibleContent
-        exportText(cleaned, filename: "summary.txt")
+        exportText(cleaned, filename: "\(exportPrefix)_summary.txt")
     }
 
     func exportSummaryAsMarkdown() {
         guard !summary.isEmpty else { return }
         Logger.info("User exporting summary as markdown", category: Logger.ui)
         let cleaned = ThinkingTagParser.parse(summary).visibleContent
-        exportFile(cleaned, filename: "summary.md", contentType: UTType(filenameExtension: "md", conformingTo: .text) ?? .plainText)
+        exportFile(cleaned, filename: "\(exportPrefix)_summary.md", contentType: UTType(filenameExtension: "md", conformingTo: .text) ?? .plainText)
     }
 
     // MARK: - Redo Commands

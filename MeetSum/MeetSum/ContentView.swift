@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var captureMicrophone: Bool = ModelSettings.captureMicrophone
     @State private var captureSystemAudio: Bool = ModelSettings.captureSystemAudio
     @State private var spaceKeyMonitor: Any?
+    @State private var showEndRecordingConfirmation = false
     @Environment(\.openWindow) private var openWindow
 
     init(modelManager: ModelManager, meetingStore: MeetingStore) {
@@ -52,6 +53,14 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 600)
+        .alert("End Recording?", isPresented: $showEndRecordingConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("End Recording", role: .destructive) {
+                viewModel.stopRecording()
+            }
+        } message: {
+            Text("This will stop the current recording and begin processing the transcription.")
+        }
         .sheet(isPresented: $showingModelSetup) {
             ModelSetupView(modelManager: modelManager, isPresented: $showingModelSetup)
         }
@@ -83,7 +92,7 @@ struct ContentView: View {
                                 .disabled(viewModel.isStartingRecording)
 
                                 Button(action: {
-                                    viewModel.stopRecording()
+                                    showEndRecordingConfirmation = true
                                 }) {
                                     HStack(spacing: 6) {
                                         Image(systemName: "stop.circle.fill")
@@ -104,7 +113,7 @@ struct ContentView: View {
                                     }
                                 }
 
-                                Button(action: { viewModel.stopRecording() }) {
+                                Button(action: { showEndRecordingConfirmation = true }) {
                                     HStack(spacing: 6) {
                                         Image(systemName: "stop.circle.fill")
                                             .foregroundColor(.red)
@@ -241,6 +250,8 @@ struct ContentView: View {
                 NSEvent.removeMonitor(monitor)
                 spaceKeyMonitor = nil
             }
+            // Flush any pending notes so they aren't lost on window close / app quit
+            viewModel.saveNotes()
         }
     }
 }
