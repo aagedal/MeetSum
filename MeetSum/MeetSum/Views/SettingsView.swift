@@ -23,6 +23,7 @@ struct SettingsView: View {
     @StateObject private var mlxLoader = MLXModelLoader()
     @State private var selectedWhisperModel: String = ModelSettings.selectedWhisperModel
     @State private var disableThinking: Bool = ModelSettings.disableModelThinking
+    @State private var transcriptionLanguage: String = ModelSettings.transcriptionLanguage
 
     var body: some View {
         TabView {
@@ -44,6 +45,8 @@ struct SettingsView: View {
             // Transcription tab
             ScrollView {
                 VStack(spacing: 24) {
+                    transcriptionLanguageSection
+                    Divider()
                     installedModelsSection
 
                     if !modelManager.customModels.isEmpty {
@@ -195,6 +198,29 @@ struct SettingsView: View {
                     showingMLXDirectoryPicker = true
                 }
                 .buttonStyle(.borderedProminent)
+            }
+        }
+    }
+
+    // MARK: - Transcription Language Section
+
+    private var transcriptionLanguageSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Transcription Language", systemImage: "globe")
+                .font(.headline)
+
+            Text("Set the spoken language for transcription. Auto-detect works for most cases, but selecting a specific language can improve accuracy.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Picker("Language", selection: $transcriptionLanguage) {
+                ForEach(ModelSettings.whisperLanguages, id: \.code) { lang in
+                    Text(lang.name).tag(lang.code)
+                }
+            }
+            .labelsHidden()
+            .onChange(of: transcriptionLanguage) { _, newValue in
+                ModelSettings.transcriptionLanguage = newValue
             }
         }
     }

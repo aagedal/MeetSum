@@ -85,7 +85,12 @@ class TranscriptionManager: ObservableObject {
         let result: Result<String, Error> = await Task.detached(priority: .userInitiated) {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: binaryPath)
-            process.arguments = ["-m", modelPath.path, "-f", audioURL.path, "-otxt", "-of", outputPath.replacingOccurrences(of: ".txt", with: "")]
+            var arguments = ["-m", modelPath.path, "-f", audioURL.path, "-otxt", "-of", outputPath.replacingOccurrences(of: ".txt", with: "")]
+            let language = ModelSettings.transcriptionLanguage
+            if language != "auto" {
+                arguments += ["-l", language]
+            }
+            process.arguments = arguments
 
             let stderrPipe = Pipe()
             let stdoutPipe = Pipe()
