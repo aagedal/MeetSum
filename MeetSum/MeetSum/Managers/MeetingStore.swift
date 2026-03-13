@@ -15,6 +15,7 @@ class MeetingStore: ObservableObject {
 
     @Published var meetings: [RecordingSession] = []
     @Published var selectedMeetingId: UUID?
+    @Published var lastError: String?
 
     // MARK: - Private Properties
 
@@ -55,6 +56,7 @@ class MeetingStore: ObservableObject {
             Logger.info("Loaded \(meetings.count) meetings from store", category: Logger.general)
         } catch {
             Logger.error("Failed to load meetings", error: error, category: Logger.general)
+            lastError = "Failed to load saved meetings: \(error.localizedDescription)"
         }
     }
 
@@ -65,9 +67,11 @@ class MeetingStore: ObservableObject {
             encoder.outputFormatting = .prettyPrinted
             let data = try encoder.encode(meetings)
             try data.write(to: storageURL, options: .atomic)
+            lastError = nil
             Logger.debug("Saved \(meetings.count) meetings to store", category: Logger.general)
         } catch {
             Logger.error("Failed to save meetings", error: error, category: Logger.general)
+            lastError = "Failed to save meeting data: \(error.localizedDescription)"
         }
     }
 

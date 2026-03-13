@@ -171,6 +171,10 @@ class MeetingViewModel: ObservableObject {
             .compactMap { $0?.localizedDescription }
             .assign(to: &$errorMessage)
 
+        meetingStore.$lastError
+            .compactMap { $0 }
+            .assign(to: &$errorMessage)
+
         // Bind processing state
         Publishers.CombineLatest(transcriptionManager.$isTranscribing, summarizationManager.$isSummarizing)
             .map { $0 || $1 }
