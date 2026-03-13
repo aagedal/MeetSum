@@ -117,9 +117,10 @@ class SummarizationManager: ObservableObject {
 
         progress = "Generating summary..."
 
+        let systemPrompt = ModelSettings.summarizationSystemPrompt
         let userInput = UserInput(
             messages: [
-                ["role": "system", "content": "You are a helpful assistant that summarizes meeting transcriptions. Provide clear, concise bullet-point summaries that capture key topics, decisions, and action items."],
+                ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": "Please provide a concise summary of the following meeting transcription:\n\n\(transcription)"]
             ]
         )
@@ -168,9 +169,9 @@ class SummarizationManager: ObservableObject {
     private func summarizeWithAppleIntelligence(transcription: String) async -> String? {
         progress = "Summarizing with Apple Intelligence..."
 
+        let systemPrompt = ModelSettings.summarizationSystemPrompt
         let prompt = """
-        You are a helpful assistant that summarizes meeting transcriptions. \
-        Provide clear, concise bullet-point summaries that capture key topics, decisions, and action items.
+        \(systemPrompt)
 
         Please provide a concise summary of the following meeting transcription:
 

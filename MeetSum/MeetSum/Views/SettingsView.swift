@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var showingDirectoryPicker = false
     @State private var downloadingModels: Set<String> = []
     @State private var selectedEngine: SummarizationEngine = ModelSettings.summarizationEngine
+    @State private var customPrompt: String = ModelSettings.summarizationSystemPrompt
     @StateObject private var mlxLoader = MLXModelLoader()
 
     var body: some View {
@@ -57,6 +58,16 @@ struct SettingsView: View {
                         Divider()
                         mlxModelSection
                     }
+
+                    Divider()
+
+                    // Summarization Prompt Section
+                    summarizationPromptSection
+
+                    Divider()
+
+                    // Data Directory Section
+                    dataDirectorySection
 
                     Divider()
 
@@ -421,6 +432,79 @@ struct SettingsView: View {
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
+    }
+
+    // MARK: - Data Directory Section
+
+    private var dataDirectorySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Data Directory", systemImage: "internaldrive")
+                .font(.headline)
+
+            Text("Recordings, transcripts, and meeting data are stored here.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            if let dir = try? AudioUtils.getRecordingsDirectory().deletingLastPathComponent() {
+                HStack {
+                    Text(dir.path)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Spacer()
+
+                    Button("Open in Finder") {
+                        NSWorkspace.shared.open(dir)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .padding()
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+            }
+        }
+    }
+
+    // MARK: - Summarization Prompt Section
+
+    private var summarizationPromptSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Summarization Prompt", systemImage: "text.bubble")
+                .font(.headline)
+
+            Text("Customize the system prompt used when generating meeting summaries.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            TextEditor(text: $customPrompt)
+                .font(.system(.body, design: .monospaced))
+                .frame(height: 100)
+                .padding(4)
+                .background(Color(NSColor.textBackgroundColor))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.secondary.opacity(0.3))
+                )
+                .onChange(of: customPrompt) { _, newValue in
+                    ModelSettings.summarizationSystemPrompt = newValue
+                }
+
+            HStack {
+                Spacer()
+                if customPrompt != ModelSettings.defaultSummarizationPrompt {
+                    Button("Reset to Default") {
+                        customPrompt = ModelSettings.defaultSummarizationPrompt
+                        ModelSettings.summarizationSystemPrompt = customPrompt
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
     }
 
     // MARK: - MLX Cache Helpers

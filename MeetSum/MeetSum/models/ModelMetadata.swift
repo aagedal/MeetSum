@@ -132,6 +132,28 @@ struct ModelMetadata: Identifiable, Codable, Hashable {
         huggingFaceId: "mlx-community/gpt-oss-20b-MXFP4-Q4"
     )
 
+    static let qwen35_9b_mlx = ModelMetadata(
+        id: "qwen3.5-9b-4bit",
+        name: "Qwen3.5 9B 4-bit",
+        type: .mlx,
+        filename: "",
+        downloadURL: URL(string: "https://huggingface.co/mlx-community/Qwen3.5-9B-MLX-4bit")!,
+        sizeBytes: 5_500_000_000,
+        description: "Mid-size model. Higher quality than 4B with moderate memory use. ~6GB memory.",
+        huggingFaceId: "mlx-community/Qwen3.5-9B-MLX-4bit"
+    )
+
+    static let gemma3_12b_mlx = ModelMetadata(
+        id: "gemma-3-12b-it-4bit",
+        name: "Gemma 3 12B IT 4-bit",
+        type: .mlx,
+        filename: "",
+        downloadURL: URL(string: "https://huggingface.co/mlx-community/gemma-3-12b-it-4bit")!,
+        sizeBytes: 7_600_000_000,
+        description: "Google's Gemma 3 instruction-tuned. Strong summarization quality. ~8GB memory.",
+        huggingFaceId: "mlx-community/gemma-3-12b-it-4bit"
+    )
+
     static let allModels: [ModelMetadata] = [
         whisperTiny,
         whisperBase,
@@ -139,6 +161,8 @@ struct ModelMetadata: Identifiable, Codable, Hashable {
         whisperNbSmall,
         whisperNbLarge,
         qwen3_4b_mlx,
+        qwen35_9b_mlx,
+        gemma3_12b_mlx,
         gptOss20b_mlx
     ]
 

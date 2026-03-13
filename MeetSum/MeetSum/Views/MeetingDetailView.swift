@@ -11,8 +11,7 @@ struct MeetingDetailView: View {
     @ObservedObject var viewModel: MeetingViewModel
     @ObservedObject var modelManager: ModelManager
     @Binding var showingSettings: Bool
-
-    @State private var selectedTab: Int = 0
+    @Binding var selectedTab: Int
 
     var body: some View {
         ZStack {
@@ -28,15 +27,9 @@ struct MeetingDetailView: View {
                 // Header
                 header
 
-                // Recording card (only in new-meeting mode)
-                if viewModel.isNewMeetingMode {
-                    recordingCard
-                        .padding(.horizontal)
-                }
-
-                // Playback controls (for saved meetings with audio)
-                if !viewModel.isNewMeetingMode && viewModel.recordingSession?.audioFileURL != nil {
-                    playbackCard
+                // No Whisper model warning
+                if !modelManager.availableModels.contains(where: { $0.type == .whisper && modelManager.isModelInstalled($0.id) }) {
+                    noModelBanner
                         .padding(.horizontal)
                 }
 
@@ -46,21 +39,14 @@ struct MeetingDetailView: View {
                         .padding(.horizontal)
                 }
 
-                // Tab view
-                TabView(selection: $selectedTab) {
+                // Content based on selected tab
+                if selectedTab == 0 {
                     transcriptTab
-                        .tabItem {
-                            Label("Transcript", systemImage: "text.quote")
-                        }
-                        .tag(0)
-
+                        .padding(.horizontal)
+                } else {
                     summaryTab
-                        .tabItem {
-                            Label("Summary", systemImage: "sparkles")
-                        }
-                        .tag(1)
+                        .padding(.horizontal)
                 }
-                .padding(.horizontal)
             }
             .padding()
         }
@@ -91,102 +77,6 @@ struct MeetingDetailView: View {
         .padding()
     }
 
-    // MARK: - Recording Card
-
-    private var recordingCard: some View {
-        VStack(spacing: 16) {
-            // Recording button
-            Button(action: {
-                if viewModel.recordingState == .recording {
-                    viewModel.stopRecording()
-                } else if viewModel.recordingState == .idle {
-                    viewModel.startRecording()
-                }
-            }) {
-                HStack(spacing: 12) {
-                    if viewModel.isStartingRecording {
-                        ProgressView()
-                            .controlSize(.regular)
-                            .frame(width: 32, height: 32)
-                    } else {
-                        Image(systemName: viewModel.recordingState == .recording ? "stop.circle.fill" : "mic.circle.fill")
-                            .font(.system(size: 32))
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(viewModel.isStartingRecording ? "Starting..." : viewModel.recordingState == .recording ? "Stop Recording" : "Start Recording")
-                            .font(.headline)
-                        if viewModel.recordingState == .recording {
-                            Text("Recording: \(viewModel.recordingTime)")
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(0.8))
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(viewModel.isStartingRecording ? Color.orange : viewModel.recordingState == .recording ? Color.red : Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(12)
-            }
-            .buttonStyle(.plain)
-            .disabled(viewModel.isStartingRecording)
-
-            // Playback controls (during new meeting mode, after recording)
-            if !viewModel.isRecording && !viewModel.totalDuration.isEmpty {
-                HStack(spacing: 16) {
-                    Button(action: {
-                        if viewModel.isPlaying {
-                            viewModel.pauseRecording()
-                        } else {
-                            viewModel.playRecording()
-                        }
-                    }) {
-                        Label(viewModel.isPlaying ? "Pause" : "Play", systemImage: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                            .font(.headline)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Spacer()
-                }
-            }
-        }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.1), radius: 10)
-    }
-
-    // MARK: - Playback Card (for saved meetings)
-
-    private var playbackCard: some View {
-        HStack(spacing: 16) {
-            Button(action: {
-                if viewModel.isPlaying {
-                    viewModel.pauseRecording()
-                } else {
-                    viewModel.playRecording()
-                }
-            }) {
-                Label(viewModel.isPlaying ? "Pause" : "Play", systemImage: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.headline)
-            }
-            .buttonStyle(.bordered)
-
-            if !viewModel.totalDuration.isEmpty {
-                Label(viewModel.totalDuration, systemImage: "clock")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.1), radius: 10)
-    }
-
     // MARK: - Transcript Tab
 
     private var transcriptTab: some View {
@@ -199,7 +89,7 @@ struct MeetingDetailView: View {
 
                     Spacer()
 
-                    if !viewModel.liveTranscription.isEmpty {
+                    if !viewModel.liveSegments.isEmpty {
                         HStack(spacing: 4) {
                             Circle()
                                 .fill(Color.red)
@@ -213,17 +103,25 @@ struct MeetingDetailView: View {
 
                 ScrollViewReader { proxy in
                     ScrollView {
-                        Text(viewModel.liveTranscription.isEmpty ? "Listening..." : viewModel.liveTranscription)
-                            .font(.body)
-                            .foregroundColor(viewModel.liveTranscription.isEmpty ? .secondary : .primary)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding()
-                            .id("transcriptBottom")
+                        VStack(alignment: .leading, spacing: 8) {
+                            if viewModel.liveSegments.isEmpty {
+                                Text("Listening...")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                                    .padding()
+                            } else {
+                                ForEach(viewModel.liveSegments) { segment in
+                                    segmentRow(segment)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                        .id("transcriptBottom")
                     }
                     .background(Color(NSColor.textBackgroundColor))
                     .cornerRadius(8)
-                    .onChange(of: viewModel.liveTranscription) {
+                    .onChange(of: viewModel.liveSegments.count) {
                         withAnimation {
                             proxy.scrollTo("transcriptBottom", anchor: .bottom)
                         }
@@ -231,7 +129,7 @@ struct MeetingDetailView: View {
                 }
 
             } else if !viewModel.transcription.isEmpty {
-                // Final transcript after recording
+                // Final transcript
                 HStack {
                     Label("Transcription", systemImage: "text.quote")
                         .font(.headline)
@@ -259,12 +157,43 @@ struct MeetingDetailView: View {
                     .controlSize(.small)
                 }
 
+                // Summary progress banner
+                if viewModel.isSummarizing {
+                    HStack(spacing: 12) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Generating summary...")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        if !viewModel.summarizationProgress.isEmpty {
+                            Text(viewModel.summarizationProgress)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(Color.purple.opacity(0.1))
+                    .cornerRadius(8)
+                }
+
                 ScrollView {
-                    Text(viewModel.transcription)
-                        .font(.body)
-                        .textSelection(.enabled)
+                    if let segments = viewModel.recordingSession?.segments, !segments.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(segments) { segment in
+                                segmentRow(segment)
+                            }
+                        }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
+                    } else {
+                        // Fallback for legacy meetings without segments
+                        Text(viewModel.transcription)
+                            .font(.body)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding()
+                    }
                 }
                 .background(Color(NSColor.textBackgroundColor))
                 .cornerRadius(8)
@@ -288,6 +217,20 @@ struct MeetingDetailView: View {
         .shadow(color: .black.opacity(0.1), radius: 10)
     }
 
+    // MARK: - Segment Row
+
+    private func segmentRow(_ segment: TranscriptSegment) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(segment.timecode)
+                .font(.caption.monospacedDigit())
+                .foregroundColor(.secondary)
+                .frame(width: 40, alignment: .trailing)
+            Text(segment.text)
+                .font(.body)
+                .textSelection(.enabled)
+        }
+    }
+
     // MARK: - Summary Tab
 
     private var summaryTab: some View {
@@ -304,14 +247,14 @@ struct MeetingDetailView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            } else if viewModel.summarizationManager.isSummarizing {
+            } else if viewModel.isSummarizing {
                 // Summarizing
                 VStack(spacing: 16) {
                     ProgressView()
                         .scaleEffect(1.5)
                     Text("Generating summary...")
                         .font(.headline)
-                    Text(viewModel.summarizationManager.progress)
+                    Text(viewModel.summarizationProgress)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -370,6 +313,35 @@ struct MeetingDetailView: View {
         .background(Color.purple.opacity(0.1))
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.1), radius: 10)
+    }
+
+    // MARK: - No Model Banner
+
+    private var noModelBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.yellow)
+                .font(.title2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("No Whisper Model Installed")
+                    .font(.headline)
+                Text("You can still record — download a Whisper model in Settings to enable transcription.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Button("Open Settings") {
+                showingSettings = true
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding()
+        .background(Color.yellow.opacity(0.1))
+        .cornerRadius(12)
     }
 
     // MARK: - Error Card

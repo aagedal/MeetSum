@@ -43,6 +43,14 @@ struct AudioUtils {
         interleaved: true
     )!
 
+    /// Intermediate Float32 format for audio mixing: 16kHz, mono
+    static let whisperFloat32Format = AVAudioFormat(
+        commonFormat: .pcmFormatFloat32,
+        sampleRate: 16000,
+        channels: 1,
+        interleaved: false
+    )!
+
     /// File extension for recordings
     static let recordingFileExtension = "wav"
 
@@ -108,6 +116,14 @@ struct AudioUtils {
         dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
         let dateString = dateFormatter.string(from: Date())
         return "recording_\(dateString).\(recordingFileExtension)"
+    }
+
+    /// Generate a unique filename for a high-quality playback recording
+    static func generatePlaybackFilename() -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
+        let dateString = dateFormatter.string(from: Date())
+        return "recording_\(dateString)_hq.m4a"
     }
 
     // MARK: - Time Formatting

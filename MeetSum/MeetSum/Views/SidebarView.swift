@@ -9,20 +9,31 @@ import SwiftUI
 
 struct SidebarView: View {
     @ObservedObject var meetingStore: MeetingStore
+    var processingMeetingIds: Set<UUID>
     var onNewMeeting: () -> Void
+    var onImportAudio: () -> Void
 
     @State private var editingMeetingId: UUID?
     @State private var editingTitle: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
-            // New Meeting button
-            Button(action: onNewMeeting) {
-                Label("New Meeting", systemImage: "plus.circle.fill")
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            // New Meeting / Import buttons
+            HStack(spacing: 8) {
+                Button(action: onNewMeeting) {
+                    Label("New Meeting", systemImage: "plus.circle.fill")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+
+                Button(action: onImportAudio) {
+                    Image(systemName: "square.and.arrow.down")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .help("Import audio file")
             }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
             .padding()
 
             Divider()
@@ -40,7 +51,7 @@ struct SidebarView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(selection: $meetingStore.selectedMeetingId) {
-                    ForEach(meetingStore.meetings) { meeting in
+                    ForEach(meetingStore.meetings, id: \.id) { meeting in
                         meetingRow(meeting)
                             .tag(meeting.id)
                             .contextMenu {
@@ -65,28 +76,37 @@ struct SidebarView: View {
 
     @ViewBuilder
     private func meetingRow(_ meeting: RecordingSession) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(meeting.title)
-                .font(.headline)
-                .lineLimit(1)
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(meeting.title)
+                    .font(.headline)
+                    .lineLimit(1)
 
-            HStack(spacing: 8) {
-                Text(formattedDate(meeting.createdAt))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                if meeting.duration > 0 {
-                    Text(AudioUtils.formatDuration(meeting.duration))
+                HStack(spacing: 8) {
+                    Text(formattedDate(meeting.createdAt))
                         .font(.caption)
                         .foregroundColor(.secondary)
+
+                    if meeting.duration > 0 {
+                        Text(AudioUtils.formatDuration(meeting.duration))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                if !meeting.transcription.isEmpty {
+                    Text(meeting.transcription.prefix(60) + (meeting.transcription.count > 60 ? "..." : ""))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
             }
 
-            if !meeting.transcription.isEmpty {
-                Text(meeting.transcription.prefix(60) + (meeting.transcription.count > 60 ? "..." : ""))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+            Spacer()
+
+            if processingMeetingIds.contains(meeting.id) {
+                ProgressView()
+                    .controlSize(.small)
             }
         }
         .padding(.vertical, 4)

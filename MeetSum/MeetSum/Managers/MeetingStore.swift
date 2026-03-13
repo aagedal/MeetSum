@@ -84,9 +84,14 @@ class MeetingStore: ObservableObject {
     }
 
     func deleteMeeting(_ meeting: RecordingSession) {
-        // Delete audio file if it exists
+        // Delete audio files if they exist
         if let url = meeting.audioFileURL {
             try? FileManager.default.removeItem(at: url)
+        }
+        if let playbackFilename = meeting.playbackAudioFilename,
+           let recordingsDir = try? AudioUtils.getRecordingsDirectory() {
+            let playbackURL = recordingsDir.appendingPathComponent(playbackFilename)
+            try? FileManager.default.removeItem(at: playbackURL)
         }
         meetings.removeAll { $0.id == meeting.id }
         if selectedMeetingId == meeting.id {

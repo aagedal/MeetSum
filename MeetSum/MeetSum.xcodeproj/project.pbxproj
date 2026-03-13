@@ -7,16 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		8E04BE342ED4EE20005AD3D9 /* MeetSum/bin in Resources */ = {isa = PBXBuildFile; fileRef = 8E04BE332ED4EE20005AD3D9 /* MeetSum/bin */; };
 		AA01BE052F0000A0005AD3D9 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = AA01BE022F0000A0005AD3D9 /* MLXLLM */; };
 		AA01BE072F0000A0005AD3D9 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = AA01BE042F0000A0005AD3D9 /* MLXLMCommon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		8E04BE252ED4EE20005AD3D8 /* MeetSum.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MeetSum.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		8E04BE332ED4EE20005AD3D9 /* MeetSum/bin */ = {isa = PBXFileReference; lastKnownFileType = folder; path = MeetSum/bin; sourceTree = "<group>"; };
-		AC9F1AE63D28BB7BDC9D15DB /* lib */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = lib; path = MeetSum/lib; sourceTree = "<group>"; };
-		B2ADAAAA9D4C74949EFD0649 /* lib */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = lib; path = MeetSum/lib; sourceTree = "<group>"; };
+		8E04BE252ED4EE20005AD3D8 /* MeetSum.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = MeetSum.app; path = /Users/traag222/Development/MeetSum/MeetSum/build/Debug/MeetSum.app; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -44,27 +40,7 @@
 			isa = PBXGroup;
 			children = (
 				8E04BE272ED4EE20005AD3D8 /* MeetSum */,
-				8E04BE262ED4EE20005AD3D8 /* Products */,
-				8E9B521E2ED63409006E6A10 /* Recovered References */,
-				B2ADAAAA9D4C74949EFD0649 /* lib */,
-				AC9F1AE63D28BB7BDC9D15DB /* lib */,
 			);
-			sourceTree = "<group>";
-		};
-		8E04BE262ED4EE20005AD3D8 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				8E04BE252ED4EE20005AD3D8 /* MeetSum.app */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		8E9B521E2ED63409006E6A10 /* Recovered References */ = {
-			isa = PBXGroup;
-			children = (
-				8E04BE332ED4EE20005AD3D9 /* MeetSum/bin */,
-			);
-			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -122,7 +98,7 @@
 				AA01BE012F0000A0005AD3D9 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */,
 			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 8E04BE262ED4EE20005AD3D8 /* Products */;
+			productRefGroup = 8E04BE1C2ED4EE20005AD3D8;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -136,7 +112,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8E04BE342ED4EE20005AD3D9 /* MeetSum/bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -278,6 +253,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				AUTOMATION_APPLE_EVENTS = NO;
 				CODE_SIGN_ENTITLEMENTS = MeetSum/MeetSum.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -300,6 +276,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "A. MeetSum";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MeetSum needs access to your microphone to record audio for transcription and summarization.";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -334,6 +312,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				AUTOMATION_APPLE_EVENTS = NO;
 				CODE_SIGN_ENTITLEMENTS = MeetSum/MeetSum.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -356,6 +335,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "A. MeetSum";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MeetSum needs access to your microphone to record audio for transcription and summarization.";
 				LD_RUNPATH_SEARCH_PATHS = (

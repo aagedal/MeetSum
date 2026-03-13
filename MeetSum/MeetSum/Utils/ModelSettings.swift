@@ -42,7 +42,14 @@ struct ModelSettings {
         static let selectedMLXModel = "selectedMLXModel"
         static let summarizationEngine = "summarizationEngine"
         static let hasCompletedInitialSetup = "hasCompletedInitialSetup"
+        static let summarizationSystemPrompt = "summarizationSystemPrompt"
+        static let captureSystemAudio = "captureSystemAudio"
+        static let captureMicrophone = "captureMicrophone"
     }
+
+    // MARK: - Defaults
+
+    static let defaultSummarizationPrompt = "You are a helpful assistant that summarizes meeting transcriptions. Format your response in Markdown. Provide clear, concise bullet-point summaries that capture key topics, decisions, and action items. Use headings, bold text, and lists for readability."
 
     // MARK: - Model Directory Bookmark
 
@@ -94,6 +101,47 @@ struct ModelSettings {
         }
     }
 
+    // MARK: - Summarization Prompt
+
+    static var summarizationSystemPrompt: String {
+        get {
+            defaults.string(forKey: Keys.summarizationSystemPrompt) ?? defaultSummarizationPrompt
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.summarizationSystemPrompt)
+        }
+    }
+
+    // MARK: - Audio Capture
+
+    /// Whether to capture microphone audio
+    static var captureMicrophone: Bool {
+        get {
+            if defaults.object(forKey: Keys.captureMicrophone) == nil {
+                return true
+            }
+            return defaults.bool(forKey: Keys.captureMicrophone)
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.captureMicrophone)
+            Logger.info("Capture microphone: \(newValue)", category: Logger.general)
+        }
+    }
+
+    /// Whether to capture system audio (Teams, FaceTime, etc.)
+    static var captureSystemAudio: Bool {
+        get {
+            if defaults.object(forKey: Keys.captureSystemAudio) == nil {
+                return true
+            }
+            return defaults.bool(forKey: Keys.captureSystemAudio)
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.captureSystemAudio)
+            Logger.info("Capture system audio: \(newValue)", category: Logger.general)
+        }
+    }
+
     // MARK: - Setup Status
 
     static var hasCompletedInitialSetup: Bool {
@@ -114,6 +162,9 @@ struct ModelSettings {
         defaults.removeObject(forKey: Keys.selectedMLXModel)
         defaults.removeObject(forKey: Keys.summarizationEngine)
         defaults.removeObject(forKey: Keys.hasCompletedInitialSetup)
+        defaults.removeObject(forKey: Keys.summarizationSystemPrompt)
+        defaults.removeObject(forKey: Keys.captureSystemAudio)
+        defaults.removeObject(forKey: Keys.captureMicrophone)
         Logger.info("Model settings reset", category: Logger.general)
     }
 }

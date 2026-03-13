@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 import AppKit
+import AVFoundation
 import UniformTypeIdentifiers
 
 /// Main ViewModel that coordinates recording, transcription, and summarization
@@ -23,6 +24,10 @@ class MeetingViewModel: ObservableObject {
     @Published var totalDuration: String = ""
     @Published var liveTranscription: String = ""
     @Published var isNewMeetingMode = true
+    @Published var liveSegments: [TranscriptSegment] = []
+    @Published var isSummarizing = false
+    @Published var summarizationProgress: String = ""
+    @Published var processingMeetingIds: Set<UUID> = []
 
     // MARK: - Managers
 
@@ -36,7 +41,7 @@ class MeetingViewModel: ObservableObject {
     // MARK: - Private Properties
 
     private var cancellables = Set<AnyCancellable>()
-    private var segmentQueue: [URL] = []
+    private var segmentQueue: [(url: URL, startTime: TimeInterval)] = []
     private var isProcessingSegment = false
 
     // MARK: - Computed Properties
@@ -87,6 +92,13 @@ class MeetingViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Forward playback state changes to trigger UI updates
+        playbackManager.$isPlaying
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
         // Bind recording time
         recordingManager.$recordingTime
             .map { AudioUtils.formatDuration($0) }
@@ -114,11 +126,18 @@ class MeetingViewModel: ObservableObject {
             .map { $0 || $1 }
             .assign(to: &$isProcessing)
 
+        // Forward summarization state
+        summarizationManager.$isSummarizing
+            .assign(to: &$isSummarizing)
+
+        summarizationManager.$progress
+            .assign(to: &$summarizationProgress)
+
         // Observe new segments for real-time transcription
-        recordingManager.$newSegmentURL
+        recordingManager.$newSegment
             .compactMap { $0 }
-            .sink { [weak self] url in
-                self?.enqueueSegment(url)
+            .sink { [weak self] segment in
+                self?.enqueueSegment(segment.url, startTime: segment.startTime)
             }
             .store(in: &cancellables)
     }
@@ -128,6 +147,7 @@ class MeetingViewModel: ObservableObject {
     func startRecording() {
         Logger.info("User started recording", category: Logger.ui)
         liveTranscription = ""
+        liveSegments = []
         segmentQueue = []
         isProcessingSegment = false
         recordingManager.startRecording()
@@ -148,45 +168,48 @@ class MeetingViewModel: ObservableObject {
 
         // Create session with filename-based storage
         let audioFilename = audioURL.lastPathComponent
+        let playbackFilename = recordingManager.currentPlaybackFileURL?.lastPathComponent
         recordingSession = RecordingSession(
             audioFilename: audioFilename,
+            playbackAudioFilename: playbackFilename,
             duration: duration
         )
 
         Logger.info("Recording session created with duration: \(totalDuration)", category: Logger.ui)
 
-        // Load for playback
-        playbackManager.loadAudio(url: audioURL)
+        // Load HQ file for playback (falls back to whisper file for old recordings)
+        if let playbackURL = recordingManager.currentPlaybackFileURL {
+            playbackManager.loadAudio(url: playbackURL)
+        } else {
+            playbackManager.loadAudio(url: audioURL)
+        }
 
         // Wait for in-flight segments, then finalize
         Task {
             await waitForPendingSegments()
 
-            // Set transcription from live transcript
+            // Set transcription and segments from live data
             recordingSession?.transcription = liveTranscription
+            recordingSession?.segments = liveSegments
 
-            // Start summarization
-            if !liveTranscription.isEmpty {
-                guard let summaryText = await summarizationManager.summarize(transcription: liveTranscription) else {
-                    Logger.error("Summarization failed", category: Logger.processing)
-                    errorMessage = "Summarization failed"
-                    // Still save the meeting even without a summary
-                    if let session = recordingSession {
-                        meetingStore.addMeeting(session)
-                        meetingStore.selectedMeetingId = session.id
-                        isNewMeetingMode = false
-                    }
-                    return
-                }
-                recordingSession?.summary = summaryText
+            // Save meeting immediately so it appears in sidebar
+            guard let session = recordingSession else { return }
+            let meetingId = session.id
+            meetingStore.addMeeting(session)
+            meetingStore.selectedMeetingId = meetingId
+            isNewMeetingMode = false
+
+            // Start summarization and update meeting when done
+            guard !liveTranscription.isEmpty else { return }
+            processingMeetingIds.insert(meetingId)
+            defer { processingMeetingIds.remove(meetingId) }
+
+            if let summaryText = await summarizationManager.summarize(transcription: liveTranscription) {
+                updateMeetingInStore(id: meetingId) { $0.summary = summaryText }
                 Logger.info("Processing pipeline completed successfully", category: Logger.processing)
-            }
-
-            // Save to store and select
-            if let session = recordingSession {
-                meetingStore.addMeeting(session)
-                meetingStore.selectedMeetingId = session.id
-                isNewMeetingMode = false
+            } else {
+                Logger.error("Summarization failed", category: Logger.processing)
+                errorMessage = "Summarization failed"
             }
         }
     }
@@ -195,7 +218,7 @@ class MeetingViewModel: ObservableObject {
 
     func playRecording() {
         Logger.info("User started playback", category: Logger.ui)
-        if let url = recordingSession?.audioFileURL {
+        if let url = recordingSession?.playbackAudioFileURL {
             playbackManager.loadAudio(url: url)
         }
         playbackManager.play()
@@ -215,23 +238,106 @@ class MeetingViewModel: ObservableObject {
         totalDuration = ""
         errorMessage = nil
         liveTranscription = ""
+        liveSegments = []
         isNewMeetingMode = true
         meetingStore.selectedMeetingId = nil
     }
 
     func loadMeeting(_ meeting: RecordingSession) {
+        guard recordingSession?.id != meeting.id else { return }
         Logger.info("Loading meeting: \(meeting.title)", category: Logger.ui)
         playbackManager.unload()
 
         recordingSession = meeting
         totalDuration = meeting.duration > 0 ? AudioUtils.formatDuration(meeting.duration) : ""
         liveTranscription = ""
+        liveSegments = []
         errorMessage = nil
         isNewMeetingMode = false
 
-        // Load audio for playback if available
-        if let audioURL = meeting.audioFileURL {
+        // Load audio for playback if available (prefer HQ file)
+        if let audioURL = meeting.playbackAudioFileURL {
             playbackManager.loadAudio(url: audioURL)
+        }
+    }
+
+    // MARK: - Import Audio
+
+    func importAudioFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.audio]
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Select an audio file to import"
+
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { @MainActor in
+                await self?.processImportedAudio(url)
+            }
+        }
+    }
+
+    private func processImportedAudio(_ sourceURL: URL) async {
+        Logger.info("Importing audio file: \(sourceURL.lastPathComponent)", category: Logger.ui)
+
+        do {
+            let recordingsDir = try AudioUtils.getRecordingsDirectory()
+            let stem = sourceURL.deletingPathExtension().lastPathComponent
+            let ext = sourceURL.pathExtension
+
+            var destFilename = sourceURL.lastPathComponent
+            var destURL = recordingsDir.appendingPathComponent(destFilename)
+
+            // Avoid overwriting existing files
+            if FileManager.default.fileExists(atPath: destURL.path) {
+                destFilename = "\(stem)_\(UUID().uuidString.prefix(8)).\(ext)"
+                destURL = recordingsDir.appendingPathComponent(destFilename)
+            }
+
+            try FileManager.default.copyItem(at: sourceURL, to: destURL)
+
+            // Get audio duration
+            var duration: TimeInterval = 0
+            if let player = try? AVAudioPlayer(contentsOf: destURL) {
+                duration = player.duration
+            }
+
+            let session = RecordingSession(
+                title: stem,
+                audioFilename: destFilename,
+                duration: duration
+            )
+            let meetingId = session.id
+
+            recordingSession = session
+            totalDuration = duration > 0 ? AudioUtils.formatDuration(duration) : ""
+            liveTranscription = ""
+            liveSegments = []
+            isNewMeetingMode = false
+
+            // Load for playback
+            playbackManager.loadAudio(url: destURL)
+
+            // Save to store immediately
+            meetingStore.addMeeting(session)
+            meetingStore.selectedMeetingId = meetingId
+
+            // Transcribe and summarize in background
+            processingMeetingIds.insert(meetingId)
+            defer { processingMeetingIds.remove(meetingId) }
+
+            if let text = await transcriptionManager.transcribe(audioURL: destURL) {
+                updateMeetingInStore(id: meetingId) { $0.transcription = text }
+
+                if let summaryText = await summarizationManager.summarize(transcription: text) {
+                    updateMeetingInStore(id: meetingId) { $0.summary = summaryText }
+                }
+            }
+        } catch {
+            Logger.error("Failed to import audio", error: error, category: Logger.ui)
+            errorMessage = "Failed to import audio: \(error.localizedDescription)"
         }
     }
 
@@ -260,51 +366,54 @@ class MeetingViewModel: ObservableObject {
     // MARK: - Redo Commands
 
     func retranscribe() {
-        guard let audioURL = recordingSession?.audioFileURL else {
+        guard let session = recordingSession, let audioURL = session.audioFileURL else {
             errorMessage = "No audio file available for re-transcription"
             return
         }
+        let meetingId = session.id
         Logger.info("Re-transcribing audio", category: Logger.ui)
 
+        processingMeetingIds.insert(meetingId)
+
         Task {
+            defer { processingMeetingIds.remove(meetingId) }
+
             guard let text = await transcriptionManager.transcribe(audioURL: audioURL) else {
                 errorMessage = "Re-transcription failed"
                 return
             }
-            recordingSession?.transcription = text
 
-            // Update in store
-            if let session = recordingSession {
-                meetingStore.updateMeeting(session)
-            }
+            updateMeetingInStore(id: meetingId) { $0.transcription = text }
         }
     }
 
     func resummarize() {
-        guard !transcription.isEmpty else {
+        guard let session = recordingSession, !session.transcription.isEmpty else {
             errorMessage = "No transcription available for re-summarization"
             return
         }
+        let meetingId = session.id
+        let transcriptionText = session.transcription
         Logger.info("Re-summarizing transcription", category: Logger.ui)
 
+        processingMeetingIds.insert(meetingId)
+
         Task {
-            guard let summaryText = await summarizationManager.summarize(transcription: transcription) else {
+            defer { processingMeetingIds.remove(meetingId) }
+
+            guard let summaryText = await summarizationManager.summarize(transcription: transcriptionText) else {
                 errorMessage = "Re-summarization failed"
                 return
             }
-            recordingSession?.summary = summaryText
 
-            // Update in store
-            if let session = recordingSession {
-                meetingStore.updateMeeting(session)
-            }
+            updateMeetingInStore(id: meetingId) { $0.summary = summaryText }
         }
     }
 
     // MARK: - Segment Processing
 
-    private func enqueueSegment(_ url: URL) {
-        segmentQueue.append(url)
+    private func enqueueSegment(_ url: URL, startTime: TimeInterval) {
+        segmentQueue.append((url: url, startTime: startTime))
         processNextSegment()
     }
 
@@ -312,10 +421,13 @@ class MeetingViewModel: ObservableObject {
         guard !isProcessingSegment, !segmentQueue.isEmpty else { return }
         isProcessingSegment = true
 
-        let url = segmentQueue.removeFirst()
+        let segment = segmentQueue.removeFirst()
 
         Task {
-            if let text = await transcriptionManager.transcribeSegment(audioURL: url) {
+            if let text = await transcriptionManager.transcribeSegment(audioURL: segment.url) {
+                let transcriptSegment = TranscriptSegment(startTime: segment.startTime, text: text)
+                liveSegments.append(transcriptSegment)
+
                 if !liveTranscription.isEmpty {
                     liveTranscription += "\n"
                 }
@@ -323,7 +435,7 @@ class MeetingViewModel: ObservableObject {
             }
 
             // Clean up segment file
-            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: segment.url)
 
             isProcessingSegment = false
             processNextSegment()
@@ -338,6 +450,19 @@ class MeetingViewModel: ObservableObject {
     }
 
     // MARK: - Private Methods
+
+    /// Update a meeting in the store by ID, and sync to recordingSession if still viewing it
+    private func updateMeetingInStore(id: UUID, mutate: (inout RecordingSession) -> Void) {
+        if var meeting = meetingStore.meetings.first(where: { $0.id == id }) {
+            mutate(&meeting)
+            meetingStore.updateMeeting(meeting)
+
+            // Sync to local session if still viewing this meeting
+            if recordingSession?.id == id {
+                recordingSession = meeting
+            }
+        }
+    }
 
     private func exportText(_ text: String, filename: String) {
         exportFile(text, filename: filename, contentType: .text)
