@@ -562,7 +562,10 @@ class MeetingViewModel: ObservableObject {
                 return
             }
 
-            updateMeetingInStore(id: meetingId) { $0.transcription = text }
+            updateMeetingInStore(id: meetingId) {
+                $0.transcription = text
+                $0.segments = []
+            }
         }
     }
 
