@@ -12,13 +12,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		8E8DA4602F68A66200F556F7 /* MeetSum.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = MeetSum.app; path = /Users/traag222/Development/MeetSum/MeetSum/build/Debug/MeetSum.app; sourceTree = "<absolute>"; };
+		8E8DA4A22F68AD7D00F556F7 /* AudioSynopsis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AudioSynopsis.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		8E04BE272ED4EE20005AD3D8 /* MeetSum */ = {
+		8E04BE272ED4EE20005AD3D8 /* AudioSynopsis */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = MeetSum;
+			path = AudioSynopsis;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -39,16 +39,17 @@
 		8E04BE1C2ED4EE20005AD3D8 = {
 			isa = PBXGroup;
 			children = (
-				8E04BE272ED4EE20005AD3D8 /* MeetSum */,
+				8E04BE272ED4EE20005AD3D8 /* AudioSynopsis */,
+				8E8DA4A22F68AD7D00F556F7 /* AudioSynopsis.app */,
 			);
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		8E04BE242ED4EE20005AD3D8 /* MeetSum */ = {
+		8E04BE242ED4EE20005AD3D8 /* AudioSynopsis */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 8E04BE302ED4EE23005AD3D8 /* Build configuration list for PBXNativeTarget "MeetSum" */;
+			buildConfigurationList = 8E04BE302ED4EE23005AD3D8 /* Build configuration list for PBXNativeTarget "AudioSynopsis" */;
 			buildPhases = (
 				8E04BE212ED4EE20005AD3D8 /* Sources */,
 				8E04BE222ED4EE20005AD3D8 /* Frameworks */,
@@ -59,15 +60,15 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				8E04BE272ED4EE20005AD3D8 /* MeetSum */,
+				8E04BE272ED4EE20005AD3D8 /* AudioSynopsis */,
 			);
-			name = MeetSum;
+			name = AudioSynopsis;
 			packageProductDependencies = (
 				AA01BE022F0000A0005AD3D9 /* MLXLLM */,
 				AA01BE042F0000A0005AD3D9 /* MLXLMCommon */,
 			);
 			productName = MeetSum;
-			productReference = 8E8DA4602F68A66200F556F7 /* MeetSum.app */;
+			productReference = 8E8DA4A22F68AD7D00F556F7 /* AudioSynopsis.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -85,7 +86,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 8E04BE202ED4EE20005AD3D8 /* Build configuration list for PBXProject "MeetSum" */;
+			buildConfigurationList = 8E04BE202ED4EE20005AD3D8 /* Build configuration list for PBXProject "AudioSynopsis" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -102,7 +103,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				8E04BE242ED4EE20005AD3D8 /* MeetSum */,
+				8E04BE242ED4EE20005AD3D8 /* AudioSynopsis */,
 			);
 		};
 /* End PBXProject section */
@@ -255,10 +256,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				AUTOMATION_APPLE_EVENTS = NO;
-				CODE_SIGN_ENTITLEMENTS = MeetSum/MeetSum.entitlements;
+				CODE_SIGN_ENTITLEMENTS = AudioSynopsis/AudioSynopsis.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3R5QGG9DW6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -276,7 +277,7 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "A. Audio Synopsis";
+				INFOPLIST_KEY_CFBundleDisplayName = "Aagedal Audio Synopsis";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio Synopsis needs access to your microphone to record audio for transcription and summarization.";
@@ -314,10 +315,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				AUTOMATION_APPLE_EVENTS = NO;
-				CODE_SIGN_ENTITLEMENTS = MeetSum/MeetSum.entitlements;
+				CODE_SIGN_ENTITLEMENTS = AudioSynopsis/AudioSynopsis.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3R5QGG9DW6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -335,7 +336,7 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "A. Audio Synopsis";
+				INFOPLIST_KEY_CFBundleDisplayName = "Aagedal Audio Synopsis";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio Synopsis needs access to your microphone to record audio for transcription and summarization.";
@@ -369,7 +370,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		8E04BE202ED4EE20005AD3D8 /* Build configuration list for PBXProject "MeetSum" */ = {
+		8E04BE202ED4EE20005AD3D8 /* Build configuration list for PBXProject "AudioSynopsis" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				8E04BE2E2ED4EE23005AD3D8 /* Debug */,
@@ -378,7 +379,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		8E04BE302ED4EE23005AD3D8 /* Build configuration list for PBXNativeTarget "MeetSum" */ = {
+		8E04BE302ED4EE23005AD3D8 /* Build configuration list for PBXNativeTarget "AudioSynopsis" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				8E04BE312ED4EE23005AD3D8 /* Debug */,

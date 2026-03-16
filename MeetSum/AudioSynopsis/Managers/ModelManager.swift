@@ -134,9 +134,9 @@ class ModelManager: ObservableObject {
             }
         }
 
-        // Fall back to default HuggingFace cache location
-        if let cachesDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first {
-            let defaultMLXDir = cachesDir.appendingPathComponent("huggingface").appendingPathComponent("models")
+        // Fall back to Application Support/MLXModels
+        if let appSupportDir = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            let defaultMLXDir = appSupportDir.appendingPathComponent("MLXModels")
             try? fileManager.createDirectory(at: defaultMLXDir, withIntermediateDirectories: true, attributes: nil)
             mlxModelDirectory = defaultMLXDir
             Logger.info("Using default MLX model directory: \(defaultMLXDir.path)", category: Logger.general)
@@ -246,6 +246,11 @@ class ModelManager: ObservableObject {
     /// - Parameter modelId: Model identifier
     /// - Returns: URL to the model file, or nil if not installed
     func getModelPath(for modelId: String) -> URL? {
+        // Check custom path models first
+        if modelId.hasPrefix("custom-whisper-") {
+            return getCustomWhisperModelPath(for: modelId)
+        }
+
         guard let directory = whisperModelDirectory else {
             Logger.warning("Cannot get model path: no directory set", category: Logger.general)
             return nil
@@ -267,6 +272,29 @@ class ModelManager: ObservableObject {
             Logger.warning("Model file does not exist: \(modelId)", category: Logger.general)
             return nil
         }
+    }
+
+    /// Get the file path for a custom path whisper model by resolving its bookmark
+    private func getCustomWhisperModelPath(for modelId: String) -> URL? {
+        guard let entry = ModelSettings.customWhisperModels.first(where: { $0.id == modelId }),
+              let url = entry.resolveURL() else {
+            Logger.warning("Cannot resolve custom whisper model: \(modelId)", category: Logger.general)
+            return nil
+        }
+
+        guard url.startAccessingSecurityScopedResource() else {
+            Logger.warning("Cannot access custom whisper model: \(url.path)", category: Logger.general)
+            return nil
+        }
+
+        if fileManager.fileExists(atPath: url.path) {
+            Logger.debug("Custom whisper model path for \(modelId): \(url.path)", category: Logger.general)
+            return url
+        }
+
+        url.stopAccessingSecurityScopedResource()
+        Logger.warning("Custom whisper model file does not exist: \(url.path)", category: Logger.general)
+        return nil
     }
     
     /// Check if a model is installed

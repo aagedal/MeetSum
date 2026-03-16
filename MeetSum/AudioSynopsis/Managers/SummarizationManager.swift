@@ -49,7 +49,17 @@ class SummarizationManager: ObservableObject {
 
         do {
             let modelId = ModelSettings.selectedMLXModel
-            let config = ModelConfiguration(id: modelId)
+
+            let config: ModelConfiguration
+            if modelId.hasPrefix("custom-mlx-"),
+               let entry = ModelSettings.customMLXModels.first(where: { $0.id == modelId }),
+               let url = entry.resolveURL() {
+                _ = url.startAccessingSecurityScopedResource()
+                config = ModelConfiguration(directory: url)
+            } else {
+                config = ModelConfiguration(id: modelId)
+            }
+
             let container = try await LLMModelFactory.shared.loadContainer(configuration: config) { progress in
                 Task { @MainActor in
                     self.modelLoadFraction = progress.fractionCompleted

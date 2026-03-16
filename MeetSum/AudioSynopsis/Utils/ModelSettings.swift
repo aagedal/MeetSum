@@ -57,6 +57,25 @@ enum SummarizationMode: String, CaseIterable, Identifiable {
     }
 }
 
+/// A user-added custom model referenced by file path (security-scoped bookmark)
+struct CustomModelEntry: Codable, Identifiable, Equatable {
+    let id: String
+    let name: String
+    let bookmarkData: Data
+
+    /// Resolve the security-scoped bookmark to a URL
+    func resolveURL() -> URL? {
+        var isStale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: .withSecurityScope,
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ) else { return nil }
+        return isStale ? nil : url
+    }
+}
+
 /// UserDefaults storage for model preferences
 struct ModelSettings {
 
@@ -80,6 +99,8 @@ struct ModelSettings {
         static let maxOutputTokens = "maxOutputTokens"
         static let summarizationLanguage = "summarizationLanguage"
         static let summarizationMode = "summarizationMode"
+        static let customWhisperModels = "customWhisperModels"
+        static let customMLXModels = "customMLXModels"
     }
 
     // MARK: - Defaults
@@ -125,7 +146,7 @@ struct ModelSettings {
 
     static var selectedMLXModel: String {
         get {
-            defaults.string(forKey: Keys.selectedMLXModel) ?? "mlx-community/Qwen3-4B-4bit"
+            defaults.string(forKey: Keys.selectedMLXModel) ?? "mlx-community/Qwen3.5-4B-OptiQ-4bit"
         }
         set {
             defaults.set(newValue, forKey: Keys.selectedMLXModel)
@@ -401,6 +422,30 @@ struct ModelSettings {
         ("su", "Sundanese"),
     ]
 
+    // MARK: - Custom Model Paths
+
+    static var customWhisperModels: [CustomModelEntry] {
+        get {
+            guard let data = defaults.data(forKey: Keys.customWhisperModels) else { return [] }
+            return (try? JSONDecoder().decode([CustomModelEntry].self, from: data)) ?? []
+        }
+        set {
+            let data = try? JSONEncoder().encode(newValue)
+            defaults.set(data, forKey: Keys.customWhisperModels)
+        }
+    }
+
+    static var customMLXModels: [CustomModelEntry] {
+        get {
+            guard let data = defaults.data(forKey: Keys.customMLXModels) else { return [] }
+            return (try? JSONDecoder().decode([CustomModelEntry].self, from: data)) ?? []
+        }
+        set {
+            let data = try? JSONEncoder().encode(newValue)
+            defaults.set(data, forKey: Keys.customMLXModels)
+        }
+    }
+
     // MARK: - Setup Status
 
     static var hasCompletedInitialSetup: Bool {
@@ -431,6 +476,8 @@ struct ModelSettings {
         defaults.removeObject(forKey: Keys.maxOutputTokens)
         defaults.removeObject(forKey: Keys.summarizationLanguage)
         defaults.removeObject(forKey: Keys.summarizationMode)
+        defaults.removeObject(forKey: Keys.customWhisperModels)
+        defaults.removeObject(forKey: Keys.customMLXModels)
         Logger.info("Model settings reset", category: Logger.general)
     }
 }

@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import MLXLMCommon
+import Hub
 
 /// FocusedValue key to expose the "new recording" action to menu commands
 struct NewRecordingActionKey: FocusedValueKey {
@@ -27,6 +29,16 @@ struct MeetSumApp: App {
 
     init() {
         Logger.info("Audio Synopsis application starting", category: Logger.general)
+
+        // Store MLX model downloads in Application Support instead of Caches
+        // (Caches can be purged by macOS under storage pressure)
+        if let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first {
+            let mlxBase = appSupport.appendingPathComponent("MLXModels")
+            try? FileManager.default.createDirectory(at: mlxBase, withIntermediateDirectories: true)
+            MLXLMCommon.defaultHubApi = HubApi(downloadBase: mlxBase)
+        }
     }
 
     var body: some Scene {

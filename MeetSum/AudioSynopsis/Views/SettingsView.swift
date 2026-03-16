@@ -29,6 +29,11 @@ struct SettingsView: View {
     @State private var maxOutputTokens: Double = Double(ModelSettings.maxOutputTokens)
     @State private var summarizationLanguage: String = ModelSettings.summarizationLanguage
     @State private var summarizationMode: SummarizationMode = ModelSettings.summarizationMode
+    @State private var whisperCategory: WhisperModelCategory = .general
+    @State private var showingCustomWhisperFilePicker = false
+    @State private var showingCustomMLXFolderPicker = false
+    @State private var customWhisperPathModels: [CustomModelEntry] = ModelSettings.customWhisperModels
+    @State private var customMLXPathModels: [CustomModelEntry] = ModelSettings.customMLXModels
 
     var body: some View {
         TabView {
@@ -61,6 +66,8 @@ struct SettingsView: View {
 
                     Divider()
                     availableWhisperModelsSection
+                    Divider()
+                    customWhisperPathsSection
                 }
                 .padding()
             }
@@ -81,6 +88,8 @@ struct SettingsView: View {
                         installedMLXModelsSection
                         Divider()
                         availableMLXModelsSection
+                        Divider()
+                        customMLXPathsSection
                         Divider()
                         summaryLengthSection
                         Divider()
@@ -119,6 +128,24 @@ struct SettingsView: View {
             allowsMultipleSelection: true
         ) { result in
             handleModelImport(result)
+        }
+        .fileImporter(
+            isPresented: $showingCustomWhisperFilePicker,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                addCustomWhisperModel(from: url)
+            }
+        }
+        .fileImporter(
+            isPresented: $showingCustomMLXFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                addCustomMLXModel(from: url)
+            }
         }
         .alert("Delete Model?", isPresented: Binding(
             get: { modelToDelete != nil },
@@ -195,7 +222,7 @@ struct SettingsView: View {
             Label("MLX Model Directory", systemImage: "folder.fill")
                 .font(.headline)
 
-            Text("Directory for MLX summarization model caches. Point this to an existing HuggingFace cache to reuse downloads from other apps.")
+            Text("MLX models are stored in Application Support by default. Point this to an existing HuggingFace cache to reuse downloads from other apps.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -666,7 +693,14 @@ struct SettingsView: View {
                 .controlSize(.small)
             }
 
-            ForEach(modelManager.availableModels.filter { $0.type == .whisper }) { model in
+            Picker("Model Category", selection: $whisperCategory) {
+                ForEach(WhisperModelCategory.allCases) { category in
+                    Text(category.rawValue).tag(category)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            ForEach(ModelMetadata.whisperModels(for: whisperCategory)) { model in
                 availableModelRow(model)
             }
         }
@@ -963,6 +997,271 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Custom Whisper Path Models
+
+    private var customWhisperPathsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Custom Whisper Models", systemImage: "folder.badge.gearshape")
+                    .font(.headline)
+                Spacer()
+                Button(action: { showingCustomWhisperFilePicker = true }) {
+                    Label("Add Model...", systemImage: "plus")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            Text("Add Whisper .bin model files from anywhere on your system.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            if customWhisperPathModels.isEmpty {
+                Text("No custom models added")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(customWhisperPathModels) { entry in
+                    customWhisperPathRow(entry)
+                }
+            }
+        }
+    }
+
+    private func customWhisperPathRow(_ entry: CustomModelEntry) -> some View {
+        let isActive = selectedWhisperModel == entry.id
+        let url = entry.resolveURL()
+
+        return HStack {
+            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(isActive ? .green : .secondary)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(entry.name)
+                        .font(.subheadline.weight(.medium))
+                    if isActive {
+                        Text("Active")
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundColor(.green)
+                            .cornerRadius(4)
+                    }
+                }
+                if let url = url {
+                    Text(url.path)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } else {
+                    Text("Path unavailable")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+            }
+
+            Spacer()
+
+            if !isActive && url != nil {
+                Button("Use") {
+                    selectedWhisperModel = entry.id
+                    ModelSettings.selectedWhisperModel = entry.id
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            Button(action: {
+                removeCustomWhisperModel(entry)
+            }) {
+                Image(systemName: "minus.circle")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding()
+        .background(isActive ? Color.blue.opacity(0.05) : Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+
+    // MARK: - Custom MLX Path Models
+
+    private var customMLXPathsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Custom MLX Models", systemImage: "folder.badge.gearshape")
+                    .font(.headline)
+                Spacer()
+                Button(action: { showingCustomMLXFolderPicker = true }) {
+                    Label("Add Model...", systemImage: "plus")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            Text("Add MLX model directories from anywhere on your system.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            if customMLXPathModels.isEmpty {
+                Text("No custom models added")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(customMLXPathModels) { entry in
+                    customMLXPathRow(entry)
+                }
+            }
+        }
+    }
+
+    private func customMLXPathRow(_ entry: CustomModelEntry) -> some View {
+        let isActive = selectedMLXModel == entry.id
+        let url = entry.resolveURL()
+
+        return HStack {
+            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(isActive ? .green : .secondary)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(entry.name)
+                        .font(.subheadline.weight(.medium))
+                    if isActive {
+                        Text("Active")
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundColor(.green)
+                            .cornerRadius(4)
+                    }
+                }
+                if let url = url {
+                    Text(url.path)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } else {
+                    Text("Path unavailable")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+            }
+
+            Spacer()
+
+            if !isActive && url != nil {
+                Button("Use") {
+                    selectedMLXModel = entry.id
+                    ModelSettings.selectedMLXModel = entry.id
+                    mlxLoader.reset()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            Button(action: {
+                removeCustomMLXModel(entry)
+            }) {
+                Image(systemName: "minus.circle")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding()
+        .background(isActive ? Color.blue.opacity(0.05) : Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+
+    // MARK: - Custom Model Actions
+
+    private func addCustomWhisperModel(from url: URL) {
+        guard url.startAccessingSecurityScopedResource() else { return }
+        defer { url.stopAccessingSecurityScopedResource() }
+
+        guard let bookmarkData = try? url.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        ) else {
+            Logger.error("Failed to create bookmark for custom Whisper model", category: Logger.ui)
+            return
+        }
+
+        let name = url.deletingPathExtension().lastPathComponent
+        let entry = CustomModelEntry(
+            id: "custom-whisper-\(UUID().uuidString)",
+            name: name,
+            bookmarkData: bookmarkData
+        )
+
+        customWhisperPathModels.append(entry)
+        ModelSettings.customWhisperModels = customWhisperPathModels
+        Logger.info("Added custom Whisper model: \(name) at \(url.path)", category: Logger.ui)
+    }
+
+    private func removeCustomWhisperModel(_ entry: CustomModelEntry) {
+        customWhisperPathModels.removeAll { $0.id == entry.id }
+        ModelSettings.customWhisperModels = customWhisperPathModels
+
+        if selectedWhisperModel == entry.id {
+            selectedWhisperModel = "whisper-base"
+            ModelSettings.selectedWhisperModel = "whisper-base"
+        }
+        Logger.info("Removed custom Whisper model: \(entry.name)", category: Logger.ui)
+    }
+
+    private func addCustomMLXModel(from url: URL) {
+        guard url.startAccessingSecurityScopedResource() else { return }
+        defer { url.stopAccessingSecurityScopedResource() }
+
+        guard let bookmarkData = try? url.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        ) else {
+            Logger.error("Failed to create bookmark for custom MLX model", category: Logger.ui)
+            return
+        }
+
+        let name = url.lastPathComponent
+        let entry = CustomModelEntry(
+            id: "custom-mlx-\(UUID().uuidString)",
+            name: name,
+            bookmarkData: bookmarkData
+        )
+
+        customMLXPathModels.append(entry)
+        ModelSettings.customMLXModels = customMLXPathModels
+        Logger.info("Added custom MLX model: \(name) at \(url.path)", category: Logger.ui)
+    }
+
+    private func removeCustomMLXModel(_ entry: CustomModelEntry) {
+        customMLXPathModels.removeAll { $0.id == entry.id }
+        ModelSettings.customMLXModels = customMLXPathModels
+
+        if selectedMLXModel == entry.id {
+            let defaultModel = "mlx-community/Qwen3.5-4B-OptiQ-4bit"
+            selectedMLXModel = defaultModel
+            ModelSettings.selectedMLXModel = defaultModel
+            mlxLoader.reset()
+        }
+        Logger.info("Removed custom MLX model: \(entry.name)", category: Logger.ui)
+    }
+
     // MARK: - MLX Cache Helpers
 
     /// Returns the cache directory for a model by checking all known locations.
@@ -976,13 +1275,11 @@ struct SettingsView: View {
             if fm.fileExists(atPath: directPath.path) {
                 return directPath
             }
-        }
 
-        // Check MLX Swift framework cache: {Caches}/models/org/name
-        if let cachesDir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first {
-            let mlxCachePath = cachesDir.appendingPathComponent("models").appendingPathComponent(hfId)
-            if fm.fileExists(atPath: mlxCachePath.path) {
-                return mlxCachePath
+            // HubApi layout: {downloadBase}/models/org/name
+            let hubApiPath = mlxDir.appendingPathComponent("models").appendingPathComponent(hfId)
+            if fm.fileExists(atPath: hubApiPath.path) {
+                return hubApiPath
             }
         }
 
@@ -1021,7 +1318,7 @@ struct SettingsView: View {
                     ModelSettings.selectedMLXModel = fallbackId
                 } else {
                     // Reset to default
-                    let defaultModel = "mlx-community/Qwen3-4B-4bit"
+                    let defaultModel = "mlx-community/Qwen3.5-4B-OptiQ-4bit"
                     selectedMLXModel = defaultModel
                     ModelSettings.selectedMLXModel = defaultModel
                 }
