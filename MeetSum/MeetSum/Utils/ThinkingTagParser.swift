@@ -1,6 +1,6 @@
 //
 //  ThinkingTagParser.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Parses <think> tags from LLM output (e.g., Qwen3)
 //

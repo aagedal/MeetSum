@@ -1,9 +1,9 @@
-# MeetSum
-An open-source macOS meeting transcription app using AI, powered by Whisper.cpp and MLX.
+# Aagedal Audio Synopsis
+An open-source macOS audio transcription and summarization app, powered by Whisper.cpp and MLX.
 
 ## Features
 
-- Meeting audio recording with timer display
+- Audio recording with timer display
 - Automatic transcription using Whisper.cpp, with segmentation to reduce latency to output.
 - AI-powered summarization with MLX
 - Export transcriptions and summaries to text files and markdown

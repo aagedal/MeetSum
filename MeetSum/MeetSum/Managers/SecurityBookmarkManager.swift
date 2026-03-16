@@ -1,6 +1,6 @@
 //
 //  SecurityBookmarkManager.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Manages security-scoped bookmark access for sandboxed apps
 //

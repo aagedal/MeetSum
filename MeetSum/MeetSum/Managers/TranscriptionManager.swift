@@ -1,6 +1,6 @@
 //
 //  TranscriptionManager.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Manages Whisper transcription processing
 //

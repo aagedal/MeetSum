@@ -1,6 +1,6 @@
 //
 //  ModelManager.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Central model management for downloads and access
 //

@@ -1,6 +1,6 @@
 //
 //  Logger.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Centralized logging utility
 //
@@ -8,26 +8,26 @@
 import Foundation
 import os.log
 
-/// Centralized logging utility for MeetSum
+/// Centralized logging utility for Audio Synopsis
 /// Provides structured logging with different levels and categories
 struct Logger {
     
     // MARK: - Log Categories
     
     /// Audio recording and playback operations
-    static let audio = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "MeetSum", category: "Audio")
+    static let audio = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "AudioSynopsis", category: "Audio")
     
     /// Transcription operations
-    static let transcription = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "MeetSum", category: "Transcription")
+    static let transcription = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "AudioSynopsis", category: "Transcription")
     
     /// User interface operations
-    static let ui = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "MeetSum", category: "UI")
+    static let ui = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "AudioSynopsis", category: "UI")
     
     /// Processing operations (summarization, etc.)
-    static let processing = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "MeetSum", category: "Processing")
+    static let processing = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "AudioSynopsis", category: "Processing")
     
     /// General application operations
-    static let general = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "MeetSum", category: "General")
+    static let general = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "AudioSynopsis", category: "General")
     
     // MARK: - Logging Methods
     

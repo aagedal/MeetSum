@@ -1,6 +1,6 @@
 //
 //  AudioPlaybackManager.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Manages audio playback operations
 //

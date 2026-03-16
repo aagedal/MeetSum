@@ -1,6 +1,6 @@
 //
 //  SummarizationManager.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Manages MLX-based and Apple Intelligence summarization
 //
@@ -120,10 +120,10 @@ class SummarizationManager: ObservableObject {
 
     private static func buildUserPrompt(transcription: String, notes: String) -> String {
         if notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Please provide a concise summary of the following meeting transcription:\n\n\(transcription)"
+            return "Please provide a concise summary of the following transcription:\n\n\(transcription)"
         } else {
             return """
-            Please provide a concise summary of the following meeting transcription and user notes:
+            Please provide a concise summary of the following transcription and user notes:
 
             Transcript:
             \(transcription)
@@ -266,7 +266,7 @@ class SummarizationManager: ObservableObject {
             .map { "Part \($0.offset + 1):\n\($0.element)" }
             .joined(separator: "\n\n")
 
-        let mergeTranscription = "The following are summaries of consecutive parts of a long meeting. Please merge them into a single cohesive summary:\n\n\(combined)"
+        let mergeTranscription = "The following are summaries of consecutive parts of a long recording. Please merge them into a single cohesive summary:\n\n\(combined)"
         return await summarizeWithMLX(transcription: mergeTranscription, notes: "")
     }
 

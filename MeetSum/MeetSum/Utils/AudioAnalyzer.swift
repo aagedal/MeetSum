@@ -1,6 +1,6 @@
 //
 //  AudioAnalyzer.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  FFT-based frequency band extraction using Accelerate/vDSP
 //

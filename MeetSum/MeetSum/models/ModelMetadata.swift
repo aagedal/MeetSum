@@ -1,6 +1,6 @@
 //
 //  ModelMetadata.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Model definitions for downloadable models
 //

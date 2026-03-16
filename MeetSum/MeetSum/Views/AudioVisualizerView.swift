@@ -1,6 +1,6 @@
 //
 //  AudioVisualizerView.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Reusable audio frequency band visualizer — 9 animated rounded rectangles
 //

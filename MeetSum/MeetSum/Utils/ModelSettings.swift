@@ -1,6 +1,6 @@
 //
 //  ModelSettings.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  UserDefaults wrapper for model preferences
 //
@@ -29,6 +29,34 @@ enum SummarizationEngine: String, CaseIterable, Identifiable {
     }
 }
 
+/// Summarization mode presets
+enum SummarizationMode: String, CaseIterable, Identifiable {
+    case general
+    case meeting
+    case lecture
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .general: return "General"
+        case .meeting: return "Meeting"
+        case .lecture: return "Lecture"
+        }
+    }
+
+    var defaultPrompt: String {
+        switch self {
+        case .general:
+            return "You are a helpful assistant that summarizes audio transcriptions. Format your response in Markdown. Provide clear, concise bullet-point summaries that capture key topics and important details. Use headings, bold text, and lists for readability."
+        case .meeting:
+            return "You are a helpful assistant that summarizes meeting transcriptions. Format your response in Markdown. Provide clear, concise bullet-point summaries that capture key topics, decisions, and action items. Use headings, bold text, and lists for readability."
+        case .lecture:
+            return "You are a helpful assistant that summarizes lectures and speeches. Format your response in Markdown. Provide a structured overview with main themes, key arguments, supporting evidence, and notable quotes. Use headings, bold text, and lists for readability."
+        }
+    }
+}
+
 /// UserDefaults storage for model preferences
 struct ModelSettings {
 
@@ -51,11 +79,15 @@ struct ModelSettings {
         static let insertTimecodeInNotes = "insertTimecodeInNotes"
         static let maxOutputTokens = "maxOutputTokens"
         static let summarizationLanguage = "summarizationLanguage"
+        static let summarizationMode = "summarizationMode"
     }
 
     // MARK: - Defaults
 
-    static let defaultSummarizationPrompt = "You are a helpful assistant that summarizes meeting transcriptions. Format your response in Markdown. Provide clear, concise bullet-point summaries that capture key topics, decisions, and action items. Use headings, bold text, and lists for readability."
+    /// Returns the default prompt for the current summarization mode
+    static var defaultSummarizationPrompt: String {
+        summarizationMode.defaultPrompt
+    }
 
     // MARK: - Model Directory Bookmark
 
@@ -114,6 +146,21 @@ struct ModelSettings {
         set {
             defaults.set(newValue.rawValue, forKey: Keys.summarizationEngine)
             Logger.info("Selected summarization engine: \(newValue.displayName)", category: Logger.general)
+        }
+    }
+
+    // MARK: - Summarization Mode
+
+    static var summarizationMode: SummarizationMode {
+        get {
+            if let raw = defaults.string(forKey: Keys.summarizationMode),
+               let mode = SummarizationMode(rawValue: raw) {
+                return mode
+            }
+            return .general
+        }
+        set {
+            defaults.set(newValue.rawValue, forKey: Keys.summarizationMode)
         }
     }
 
@@ -383,6 +430,7 @@ struct ModelSettings {
         defaults.removeObject(forKey: Keys.insertTimecodeInNotes)
         defaults.removeObject(forKey: Keys.maxOutputTokens)
         defaults.removeObject(forKey: Keys.summarizationLanguage)
+        defaults.removeObject(forKey: Keys.summarizationMode)
         Logger.info("Model settings reset", category: Logger.general)
     }
 }

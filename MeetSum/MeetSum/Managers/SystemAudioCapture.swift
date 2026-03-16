@@ -1,6 +1,6 @@
 //
 //  SystemAudioCapture.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Captures system audio using ScreenCaptureKit and provides a mixing buffer
 //  for combining system audio with microphone audio for transcription.
@@ -141,7 +141,7 @@ nonisolated class SystemAudioCapture: @unchecked Sendable {
         }
 
         let stream = SCStream(filter: filter, configuration: config, delegate: nil)
-        let audioQueue = DispatchQueue(label: "com.meetsum.systemaudio", qos: .userInitiated)
+        let audioQueue = DispatchQueue(label: "com.aagedal.audiosynopsis.systemaudio", qos: .userInitiated)
         try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: audioQueue)
 
         try await stream.startCapture()

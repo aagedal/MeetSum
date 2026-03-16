@@ -1,6 +1,6 @@
 //
 //  NotesView.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Timestamped notes panel using NSTextView with live markdown formatting
 //

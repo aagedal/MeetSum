@@ -1,6 +1,6 @@
 //
 //  AudioRecordingManager.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Manages audio recording using AVAudioEngine with segmented output
 //
@@ -48,7 +48,7 @@ class AudioRecordingManager: NSObject, ObservableObject {
     private var startTime: Date?
 
     /// Serial queue for safe segment rotation from audio tap callback
-    private let segmentQueue = DispatchQueue(label: "com.meetsum.segment", qos: .userInitiated)
+    private let segmentQueue = DispatchQueue(label: "com.aagedal.audiosynopsis.segment", qos: .userInitiated)
 
     // Segment management
     private var segmentIndex: Int = 0

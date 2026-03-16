@@ -1,6 +1,6 @@
 //
 //  PlaybackTimelineView.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Playback timeline bar with scrubber, shown below toolbar during playback
 //
@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct PlaybackTimelineView: View {
-    @ObservedObject var viewModel: MeetingViewModel
+    @ObservedObject var viewModel: RecordingViewModel
 
     @State private var isScrubbing = false
     @State private var scrubTime: TimeInterval = 0

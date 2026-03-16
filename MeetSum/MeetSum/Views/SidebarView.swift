@@ -1,39 +1,39 @@
 //
 //  SidebarView.swift
-//  MeetSum
+//  Audio Synopsis
 //
-//  Sidebar with meeting list and new meeting button
+//  Sidebar with recording list and new recording button
 //
 
 import SwiftUI
 
 struct SidebarView: View {
-    @ObservedObject var meetingStore: MeetingStore
-    var processingMeetingIds: Set<UUID>
-    var onNewMeeting: () -> Void
+    @ObservedObject var recordingStore: RecordingStore
+    var processingRecordingIds: Set<UUID>
+    var onNewRecording: () -> Void
     var onImportAudio: () -> Void
 
-    @State private var editingMeetingId: UUID?
+    @State private var editingRecordingId: UUID?
     @State private var editingTitle: String = ""
-    @State private var meetingToDelete: RecordingSession?
+    @State private var recordingToDelete: RecordingSession?
     @State private var searchText: String = ""
 
-    private var filteredMeetings: [RecordingSession] {
-        guard !searchText.isEmpty else { return meetingStore.meetings }
+    private var filteredRecordings: [RecordingSession] {
+        guard !searchText.isEmpty else { return recordingStore.recordings }
         let query = searchText.lowercased()
-        return meetingStore.meetings.filter { meeting in
-            meeting.title.lowercased().contains(query) ||
-            meeting.transcription.lowercased().contains(query) ||
-            meeting.notes.lowercased().contains(query)
+        return recordingStore.recordings.filter { recording in
+            recording.title.lowercased().contains(query) ||
+            recording.transcription.lowercased().contains(query) ||
+            recording.notes.lowercased().contains(query)
         }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // New Meeting / Import buttons
+            // New Recording / Import buttons
             HStack(spacing: 8) {
-                Button(action: onNewMeeting) {
-                    Label("New Meeting", systemImage: "plus.circle.fill")
+                Button(action: onNewRecording) {
+                    Label("New Recording", systemImage: "plus.circle.fill")
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.bordered)
@@ -50,13 +50,13 @@ struct SidebarView: View {
 
             Divider()
 
-            // Meeting list
-            if meetingStore.meetings.isEmpty {
+            // Recording list
+            if recordingStore.recordings.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "tray")
                         .font(.title)
                         .foregroundColor(.secondary.opacity(0.5))
-                    Text("No meetings yet")
+                    Text("No recordings yet")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -66,7 +66,7 @@ struct SidebarView: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.secondary)
-                    TextField("Search meetings", text: $searchText)
+                    TextField("Search recordings", text: $searchText)
                         .textFieldStyle(.plain)
                     if !searchText.isEmpty {
                         Button(action: { searchText = "" }) {
@@ -80,31 +80,31 @@ struct SidebarView: View {
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(8)
                 .padding(.horizontal)
-                .padding(.bottom, 4)
+                .padding(.vertical, 8)
 
-                if filteredMeetings.isEmpty {
+                if filteredRecordings.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .font(.title2)
                             .foregroundColor(.secondary.opacity(0.5))
-                        Text("No matching meetings")
+                        Text("No matching recordings")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    List(selection: $meetingStore.selectedMeetingId) {
-                        ForEach(filteredMeetings, id: \.id) { meeting in
-                            meetingRow(meeting)
-                                .tag(meeting.id)
+                    List(selection: $recordingStore.selectedRecordingId) {
+                        ForEach(filteredRecordings, id: \.id) { recording in
+                            recordingRow(recording)
+                                .tag(recording.id)
                                 .contextMenu {
                                     Button("Rename") {
-                                        editingMeetingId = meeting.id
-                                        editingTitle = meeting.title
+                                        editingRecordingId = recording.id
+                                        editingTitle = recording.title
                                     }
                                     Divider()
                                     Button("Delete", role: .destructive) {
-                                        meetingToDelete = meeting
+                                        recordingToDelete = recording
                                     }
                                 }
                         }
@@ -113,47 +113,47 @@ struct SidebarView: View {
                 }
             }
         }
-        .sheet(item: $editingMeetingId) { meetingId in
-            renameSheet(meetingId: meetingId)
+        .sheet(item: $editingRecordingId) { recordingId in
+            renameSheet(recordingId: recordingId)
         }
-        .alert("Delete Meeting?", isPresented: Binding(
-            get: { meetingToDelete != nil },
-            set: { if !$0 { meetingToDelete = nil } }
+        .alert("Delete Recording?", isPresented: Binding(
+            get: { recordingToDelete != nil },
+            set: { if !$0 { recordingToDelete = nil } }
         )) {
-            Button("Cancel", role: .cancel) { meetingToDelete = nil }
+            Button("Cancel", role: .cancel) { recordingToDelete = nil }
             Button("Delete", role: .destructive) {
-                if let meeting = meetingToDelete {
-                    meetingStore.deleteMeeting(meeting)
-                    meetingToDelete = nil
+                if let recording = recordingToDelete {
+                    recordingStore.deleteRecording(recording)
+                    recordingToDelete = nil
                 }
             }
         } message: {
-            Text("This will permanently delete the meeting and its audio files.")
+            Text("This will permanently delete the recording and its audio files.")
         }
     }
 
     @ViewBuilder
-    private func meetingRow(_ meeting: RecordingSession) -> some View {
+    private func recordingRow(_ recording: RecordingSession) -> some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(meeting.title)
+                Text(recording.title)
                     .font(.headline)
                     .lineLimit(1)
 
                 HStack(spacing: 8) {
-                    Text(formattedDate(meeting.createdAt))
+                    Text(formattedDate(recording.createdAt))
                         .font(.caption)
                         .foregroundColor(.secondary)
 
-                    if meeting.duration > 0 {
-                        Text(AudioUtils.formatDuration(meeting.duration))
+                    if recording.duration > 0 {
+                        Text(AudioUtils.formatDuration(recording.duration))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
 
-                if !meeting.transcription.isEmpty {
-                    Text(meeting.transcription.prefix(60) + (meeting.transcription.count > 60 ? "..." : ""))
+                if !recording.transcription.isEmpty {
+                    Text(recording.transcription.prefix(60) + (recording.transcription.count > 60 ? "..." : ""))
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
@@ -162,7 +162,7 @@ struct SidebarView: View {
 
             Spacer()
 
-            if processingMeetingIds.contains(meeting.id) {
+            if processingRecordingIds.contains(recording.id) {
                 ProgressView()
                     .controlSize(.small)
             }
@@ -170,9 +170,9 @@ struct SidebarView: View {
         .padding(.vertical, 4)
     }
 
-    private func renameSheet(meetingId: UUID) -> some View {
+    private func renameSheet(recordingId: UUID) -> some View {
         VStack(spacing: 16) {
-            Text("Rename Meeting")
+            Text("Rename Recording")
                 .font(.headline)
 
             TextField("Title", text: $editingTitle)
@@ -180,13 +180,13 @@ struct SidebarView: View {
 
             HStack {
                 Button("Cancel") {
-                    editingMeetingId = nil
+                    editingRecordingId = nil
                 }
                 .keyboardShortcut(.cancelAction)
 
                 Button("Save") {
-                    meetingStore.renameMeeting(id: meetingId, newTitle: editingTitle)
-                    editingMeetingId = nil
+                    recordingStore.renameRecording(id: recordingId, newTitle: editingTitle)
+                    editingRecordingId = nil
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(editingTitle.trimmingCharacters(in: .whitespaces).isEmpty)

@@ -1,14 +1,14 @@
 //
-//  MeetingDetailView.swift
-//  MeetSum
+//  RecordingDetailView.swift
+//  Audio Synopsis
 //
-//  Detail view for a meeting session (recording, transcript, summary)
+//  Detail view for a recording session (recording, transcript, summary)
 //
 
 import SwiftUI
 
-struct MeetingDetailView: View {
-    @ObservedObject var viewModel: MeetingViewModel
+struct RecordingDetailView: View {
+    @ObservedObject var viewModel: RecordingViewModel
     @ObservedObject var modelManager: ModelManager
     @Binding var selectedTab: Int
     @Environment(\.openWindow) private var openWindow
@@ -17,6 +17,9 @@ struct MeetingDetailView: View {
     @State private var isSearchingTranscript = false
     @State private var transcriptSearchText = ""
     @State private var currentMatchIndex = 0
+    @State private var isSearchingSummary = false
+    @State private var summarySearchText = ""
+    @State private var summaryMatchIndex = 0
     @State private var notesWidth: CGFloat = 300
     @GestureState private var dragOffset: CGFloat = 0
 
@@ -98,7 +101,7 @@ struct MeetingDetailView: View {
                             let s = total % 60
                             return "\(m):\(String(format: "%02d", s))"
                         },
-                        onTextChange: viewModel.isNewMeetingMode ? nil : { viewModel.saveNotes() }
+                        onTextChange: viewModel.isNewRecordingMode ? nil : { viewModel.saveNotes() }
                     )
                     .frame(width: max(200, min(500, notesWidth - dragOffset)))
                 }
@@ -111,11 +114,11 @@ struct MeetingDetailView: View {
     // MARK: - Header
 
     private var canEditTitle: Bool {
-        viewModel.isNewMeetingMode || (!viewModel.isRecording && !viewModel.isPaused && recordingSession != nil)
+        viewModel.isNewRecordingMode || (!viewModel.isRecording && !viewModel.isPaused && recordingSession != nil)
     }
 
     private var displayTitle: String {
-        viewModel.recordingSession?.title ?? viewModel.pendingTitle ?? "New Meeting"
+        viewModel.recordingSession?.title ?? viewModel.pendingTitle ?? "New Recording"
     }
 
     private var recordingSession: RecordingSession? {
@@ -126,8 +129,8 @@ struct MeetingDetailView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 if isEditingTitle {
-                    TextField("Meeting title", text: $editableTitle, onCommit: {
-                        viewModel.renameMeeting(editableTitle)
+                    TextField("Recording title", text: $editableTitle, onCommit: {
+                        viewModel.renameRecording(editableTitle)
                         isEditingTitle = false
                     })
                     .font(.system(size: 24, weight: .bold, design: .rounded))
@@ -338,7 +341,7 @@ struct MeetingDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding()
                         } else {
-                            // Fallback for legacy meetings without segments
+                            // Fallback for legacy recordings without segments
                             Text(viewModel.transcription)
                                 .font(.body)
                                 .textSelection(.enabled)
@@ -456,6 +459,76 @@ struct MeetingDetailView: View {
         withAnimation {
             proxy.scrollTo(matchingIDs[currentMatchIndex], anchor: .center)
         }
+    }
+
+    // MARK: - Summary Search
+
+    private var summarySearchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+
+            TextField("Search summary...", text: $summarySearchText)
+                .textFieldStyle(.roundedBorder)
+                .font(.body)
+                .onChange(of: summarySearchText) {
+                    summaryMatchIndex = 0
+                }
+
+            if !summarySearchText.isEmpty {
+                let matchCount = summaryMatchCount
+                Text("\(matchCount == 0 ? "No" : "\(summaryMatchIndex + 1)/\(matchCount)") match\(matchCount == 1 ? "" : "es")")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize()
+
+                Button(action: {
+                    let count = summaryMatchCount
+                    if count > 0 {
+                        summaryMatchIndex = (summaryMatchIndex - 1 + count) % count
+                    }
+                }) {
+                    Image(systemName: "chevron.up")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(summaryMatchCount == 0)
+
+                Button(action: {
+                    let count = summaryMatchCount
+                    if count > 0 {
+                        summaryMatchIndex = (summaryMatchIndex + 1) % count
+                    }
+                }) {
+                    Image(systemName: "chevron.down")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(summaryMatchCount == 0)
+            }
+
+            Button(action: {
+                withAnimation {
+                    isSearchingSummary = false
+                    summarySearchText = ""
+                    summaryMatchIndex = 0
+                }
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(8)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+
+    private var summaryMatchCount: Int {
+        guard !summarySearchText.isEmpty else { return 0 }
+        let query = summarySearchText.lowercased()
+        let lines = ThinkingTagParser.parse(viewModel.summary).visibleContent.components(separatedBy: "\n")
+        return lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty && $0.lowercased().contains(query) }.count
     }
 
     // MARK: - Segment Row
@@ -582,9 +655,28 @@ struct MeetingDetailView: View {
                     }
                     .menuStyle(.borderlessButton)
                     .fixedSize()
+
+                    Button(action: {
+                        withAnimation {
+                            isSearchingSummary.toggle()
+                            if !isSearchingSummary {
+                                summarySearchText = ""
+                                summaryMatchIndex = 0
+                            }
+                        }
+                    }) {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Search summary")
                 }
 
-                MarkdownSummaryView(rawSummary: viewModel.summary)
+                if isSearchingSummary {
+                    summarySearchBar
+                }
+
+                MarkdownSummaryView(rawSummary: viewModel.summary, searchText: summarySearchText, currentMatchIndex: summaryMatchIndex)
 
             } else {
                 // Empty state
@@ -592,7 +684,7 @@ struct MeetingDetailView: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: 40))
                         .foregroundColor(.secondary.opacity(0.5))
-                    Text("Record a meeting to generate a summary")
+                    Text("Start a recording to generate a summary")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }

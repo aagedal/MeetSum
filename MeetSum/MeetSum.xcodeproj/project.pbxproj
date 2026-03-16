@@ -12,7 +12,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		8E04BE252ED4EE20005AD3D8 /* MeetSum.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = MeetSum.app; path = /Users/traag222/Development/MeetSum/MeetSum/build/Debug/MeetSum.app; sourceTree = "<absolute>"; };
+		8E8DA4602F68A66200F556F7 /* MeetSum.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = MeetSum.app; path = /Users/traag222/Development/MeetSum/MeetSum/build/Debug/MeetSum.app; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -67,7 +67,7 @@
 				AA01BE042F0000A0005AD3D9 /* MLXLMCommon */,
 			);
 			productName = MeetSum;
-			productReference = 8E04BE252ED4EE20005AD3D8 /* MeetSum.app */;
+			productReference = 8E8DA4602F68A66200F556F7 /* MeetSum.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -276,10 +276,10 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "A. MeetSum";
+				INFOPLIST_KEY_CFBundleDisplayName = "A. Audio Synopsis";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MeetSum needs access to your microphone to record audio for transcription and summarization.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio Synopsis needs access to your microphone to record audio for transcription and summarization.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -289,7 +289,7 @@
 					"$(PROJECT_DIR)/MeetSum/lib",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = aagedal.MeetSum;
+				PRODUCT_BUNDLE_IDENTIFIER = aagedal.AudioSynopsis;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
@@ -335,10 +335,10 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "A. MeetSum";
+				INFOPLIST_KEY_CFBundleDisplayName = "A. Audio Synopsis";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MeetSum needs access to your microphone to record audio for transcription and summarization.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio Synopsis needs access to your microphone to record audio for transcription and summarization.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -348,7 +348,7 @@
 					"$(PROJECT_DIR)/MeetSum/lib",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = aagedal.MeetSum;
+				PRODUCT_BUNDLE_IDENTIFIER = aagedal.AudioSynopsis;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;

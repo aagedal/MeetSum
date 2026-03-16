@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Created by Truls Aagedal on 24/11/2025.
 //
@@ -10,8 +10,8 @@ import AppKit
 
 struct ContentView: View {
     @ObservedObject var modelManager: ModelManager
-    @ObservedObject var meetingStore: MeetingStore
-    @StateObject private var viewModel: MeetingViewModel
+    @ObservedObject var recordingStore: RecordingStore
+    @StateObject private var viewModel: RecordingViewModel
 
     @State private var showingModelSetup = false
     @State private var selectedTab: Int = 0
@@ -21,16 +21,16 @@ struct ContentView: View {
     @State private var showEndRecordingConfirmation = false
     @Environment(\.openWindow) private var openWindow
 
-    init(modelManager: ModelManager, meetingStore: MeetingStore) {
+    init(modelManager: ModelManager, recordingStore: RecordingStore) {
         self.modelManager = modelManager
-        self.meetingStore = meetingStore
-        _viewModel = StateObject(wrappedValue: MeetingViewModel(modelManager: modelManager, meetingStore: meetingStore))
+        self.recordingStore = recordingStore
+        _viewModel = StateObject(wrappedValue: RecordingViewModel(modelManager: modelManager, recordingStore: recordingStore))
     }
 
     var body: some View {
         mainContent
-            .focusedSceneValue(\.newMeetingAction) {
-                viewModel.prepareNewMeeting()
+            .focusedSceneValue(\.newRecordingAction) {
+                viewModel.prepareNewRecording()
             }
             .onAppear { installKeyMonitor() }
             .onDisappear {
@@ -44,8 +44,8 @@ struct ContentView: View {
 
     private var mainContent: some View {
         NavigationSplitView {
-            SidebarView(meetingStore: meetingStore, processingMeetingIds: viewModel.processingMeetingIds, onNewMeeting: {
-                viewModel.prepareNewMeeting()
+            SidebarView(recordingStore: recordingStore, processingRecordingIds: viewModel.processingRecordingIds, onNewRecording: {
+                viewModel.prepareNewRecording()
             }, onImportAudio: {
                 viewModel.importAudioFile()
             })
@@ -88,11 +88,11 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: meetingStore.selectedMeetingId) { _, newId in
-            if let id = newId, let meeting = meetingStore.meetings.first(where: { $0.id == id }) {
-                viewModel.loadMeeting(meeting)
+        .onChange(of: recordingStore.selectedRecordingId) { _, newId in
+            if let id = newId, let recording = recordingStore.recordings.first(where: { $0.id == id }) {
+                viewModel.loadRecording(recording)
             } else if newId == nil {
-                viewModel.prepareNewMeeting()
+                viewModel.prepareNewRecording()
             }
         }
     }
@@ -101,14 +101,14 @@ struct ContentView: View {
 
     private var detailContent: some View {
         VStack(spacing: 0) {
-            if !viewModel.isRecording && !viewModel.isPaused && !viewModel.isNewMeetingMode &&
+            if !viewModel.isRecording && !viewModel.isPaused && !viewModel.isNewRecordingMode &&
                 viewModel.recordingSession?.playbackAudioFileURL != nil {
                 PlaybackTimelineView(viewModel: viewModel)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 Divider()
             }
 
-            MeetingDetailView(
+            RecordingDetailView(
                 viewModel: viewModel,
                 modelManager: modelManager,
                 selectedTab: $selectedTab
@@ -122,8 +122,8 @@ struct ContentView: View {
             recordingToolbar
         } else if viewModel.isPaused {
             pausedToolbar
-        } else if viewModel.isNewMeetingMode && viewModel.recordingSession?.playbackAudioFileURL == nil {
-            newMeetingToolbar
+        } else if viewModel.isNewRecordingMode && viewModel.recordingSession?.playbackAudioFileURL == nil {
+            newRecordingToolbar
         } else if viewModel.recordingSession?.playbackAudioFileURL != nil {
             playbackToolbar
         }
@@ -177,7 +177,7 @@ struct ContentView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "stop.circle.fill")
                         .foregroundColor(.red)
-                    Text("End Meeting")
+                    Text("End Recording")
                 }
             }
 
@@ -193,7 +193,7 @@ struct ContentView: View {
         }
     }
 
-    private var newMeetingToolbar: some View {
+    private var newRecordingToolbar: some View {
         HStack(spacing: 8) {
             Button(action: { viewModel.startRecording() }) {
                 HStack(spacing: 6) {
@@ -220,13 +220,13 @@ struct ContentView: View {
 
     @ViewBuilder
     private var shareButton: some View {
-        if !viewModel.isRecording && !viewModel.isPaused && !viewModel.isNewMeetingMode &&
+        if !viewModel.isRecording && !viewModel.isPaused && !viewModel.isNewRecordingMode &&
             viewModel.recordingSession != nil &&
             (!viewModel.transcription.isEmpty || !viewModel.summary.isEmpty) {
             Button(action: { viewModel.exportCombinedMarkdown() }) {
                 Label("Share", systemImage: "square.and.arrow.up")
             }
-            .help("Export meeting as Markdown")
+            .help("Export recording as Markdown")
         }
     }
 
@@ -240,7 +240,7 @@ struct ContentView: View {
             }()
 
             // Only act when a playback file is available and not recording
-            guard !viewModel.isRecording && !viewModel.isPaused && !viewModel.isNewMeetingMode,
+            guard !viewModel.isRecording && !viewModel.isPaused && !viewModel.isNewRecordingMode,
                   viewModel.recordingSession?.playbackAudioFileURL != nil else {
                 return event
             }
@@ -306,5 +306,5 @@ private struct AudioSourceToggles: View {
 }
 
 #Preview {
-    ContentView(modelManager: ModelManager(), meetingStore: MeetingStore())
+    ContentView(modelManager: ModelManager(), recordingStore: RecordingStore())
 }

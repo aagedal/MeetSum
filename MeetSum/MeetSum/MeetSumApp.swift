@@ -1,47 +1,47 @@
 //
 //  MeetSumApp.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Created by Truls Aagedal on 24/11/2025.
 //
 
 import SwiftUI
 
-/// FocusedValue key to expose the "new meeting" action to menu commands
-struct NewMeetingActionKey: FocusedValueKey {
+/// FocusedValue key to expose the "new recording" action to menu commands
+struct NewRecordingActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
 extension FocusedValues {
-    var newMeetingAction: (() -> Void)? {
-        get { self[NewMeetingActionKey.self] }
-        set { self[NewMeetingActionKey.self] = newValue }
+    var newRecordingAction: (() -> Void)? {
+        get { self[NewRecordingActionKey.self] }
+        set { self[NewRecordingActionKey.self] = newValue }
     }
 }
 
 @main
 struct MeetSumApp: App {
     @StateObject private var modelManager = ModelManager()
-    @StateObject private var meetingStore = MeetingStore()
-    @FocusedValue(\.newMeetingAction) private var newMeetingAction
+    @StateObject private var recordingStore = RecordingStore()
+    @FocusedValue(\.newRecordingAction) private var newRecordingAction
 
     init() {
-        Logger.info("MeetSum application starting", category: Logger.general)
+        Logger.info("Audio Synopsis application starting", category: Logger.general)
     }
 
     var body: some Scene {
-        Window("MeetSum", id: "main") {
-            ContentView(modelManager: modelManager, meetingStore: meetingStore)
+        Window("Audio Synopsis", id: "main") {
+            ContentView(modelManager: modelManager, recordingStore: recordingStore)
                 .frame(minWidth: 900, minHeight: 600)
         }
         .defaultSize(width: 1000, height: 700)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("New Meeting") {
-                    newMeetingAction?()
+                Button("New Recording") {
+                    newRecordingAction?()
                 }
                 .keyboardShortcut("n", modifiers: .command)
-                .disabled(newMeetingAction == nil)
+                .disabled(newRecordingAction == nil)
             }
             CommandGroup(replacing: .appSettings) {
                 SettingsCommand()

@@ -1,6 +1,6 @@
 //
 //  AudioUtils.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Centralized audio utilities
 //

@@ -1,6 +1,6 @@
 //
 //  ModelSetupView.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  First-launch model setup view
 //
@@ -19,7 +19,7 @@ struct ModelSetupView: View {
             Text("AI Models Required")
                 .font(.title.bold())
 
-            Text("MeetSum uses AI models for transcription and summarization. Select where to store Whisper models and download the ones you need. The MLX summarization model will download automatically on first use (~5GB).")
+            Text("Audio Synopsis uses AI models for transcription and summarization. Select where to store Whisper models and download the ones you need. The MLX summarization model will download automatically on first use (~5GB).")
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
                 .frame(maxWidth: 400)

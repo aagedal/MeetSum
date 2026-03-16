@@ -1,6 +1,6 @@
 //
 //  MarkdownSummaryView.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Renders markdown-formatted summary with thinking tag support
 //
@@ -9,6 +9,8 @@ import SwiftUI
 
 struct MarkdownSummaryView: View {
     let rawSummary: String
+    var searchText: String = ""
+    var currentMatchIndex: Int = 0
 
     private var parsed: ParsedOutput {
         ThinkingTagParser.parse(rawSummary)
@@ -16,18 +18,40 @@ struct MarkdownSummaryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(contentLines.enumerated()), id: \.offset) { _, line in
-                        renderLine(line)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(Array(contentLines.enumerated()), id: \.offset) { index, line in
+                            renderLine(line)
+                                .padding(4)
+                                .background(highlightColor(for: line, lineIndex: index))
+                                .cornerRadius(4)
+                                .id(index)
+                        }
+                    }
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                }
+                .background(Color(NSColor.textBackgroundColor))
+                .cornerRadius(8)
+                .onChange(of: currentMatchIndex) {
+                    let indices = matchingLineIndices
+                    if currentMatchIndex < indices.count {
+                        withAnimation {
+                            proxy.scrollTo(indices[currentMatchIndex], anchor: .center)
+                        }
                     }
                 }
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
+                .onChange(of: searchText) {
+                    let indices = matchingLineIndices
+                    if !indices.isEmpty {
+                        withAnimation {
+                            proxy.scrollTo(indices[0], anchor: .center)
+                        }
+                    }
+                }
             }
-            .background(Color(NSColor.textBackgroundColor))
-            .cornerRadius(8)
 
             if let thinking = parsed.thinkingContent {
                 DisclosureGroup("Model Thinking") {
@@ -52,6 +76,27 @@ struct MarkdownSummaryView: View {
 
     private var contentLines: [String] {
         parsed.visibleContent.components(separatedBy: "\n")
+    }
+
+    private var matchingLineIndices: [Int] {
+        guard !searchText.isEmpty else { return [] }
+        let query = searchText.lowercased()
+        return contentLines.enumerated().compactMap { index, line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return !trimmed.isEmpty && trimmed.lowercased().contains(query) ? index : nil
+        }
+    }
+
+    private func highlightColor(for line: String, lineIndex: Int) -> Color {
+        guard !searchText.isEmpty else { return .clear }
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, trimmed.lowercased().contains(searchText.lowercased()) else { return .clear }
+
+        let indices = matchingLineIndices
+        if let matchPos = indices.firstIndex(of: lineIndex), matchPos == currentMatchIndex {
+            return Color.yellow.opacity(0.3)
+        }
+        return Color.yellow.opacity(0.1)
     }
 
     @ViewBuilder

@@ -1,6 +1,6 @@
 //
 //  RecordingSession.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Data model for a recording session
 //
@@ -103,6 +103,6 @@ struct RecordingSession: Identifiable, Codable {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
-        return "Meeting \(formatter.string(from: date))"
+        return "Recording \(formatter.string(from: date))"
     }
 }

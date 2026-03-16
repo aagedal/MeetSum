@@ -1,6 +1,6 @@
 //
 //  SettingsView.swift
-//  MeetSum
+//  Audio Synopsis
 //
 //  Settings window for model management
 //
@@ -28,6 +28,7 @@ struct SettingsView: View {
     @State private var modelToDelete: ModelMetadata?
     @State private var maxOutputTokens: Double = Double(ModelSettings.maxOutputTokens)
     @State private var summarizationLanguage: String = ModelSettings.summarizationLanguage
+    @State private var summarizationMode: SummarizationMode = ModelSettings.summarizationMode
 
     var body: some View {
         TabView {
@@ -366,7 +367,7 @@ struct SettingsView: View {
             Label("Summarization Engine", systemImage: "cpu")
                 .font(.headline)
 
-            Text("Choose how meeting transcriptions are summarized.")
+            Text("Choose how transcriptions are summarized.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -771,7 +772,7 @@ struct SettingsView: View {
             Label("Data Directory", systemImage: "internaldrive")
                 .font(.headline)
 
-            Text("Recordings, transcripts, and meeting data are stored here.")
+            Text("Recordings, transcripts, and recording data are stored here.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -870,7 +871,7 @@ struct SettingsView: View {
                 HStack {
                     Text("Estimated single-pass capacity:")
                     Spacer()
-                    Text("~\(estimatedMinutes) minutes of meeting audio")
+                    Text("~\(estimatedMinutes) minutes of recorded audio")
                         .foregroundColor(.secondary)
                 }
                 .font(.caption)
@@ -879,7 +880,7 @@ struct SettingsView: View {
             .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(8)
 
-            Text("Longer meetings are automatically handled with multi-pass summarization, where the transcript is split into chunks and summaries are merged.")
+            Text("Longer recordings are automatically handled with multi-pass summarization, where the transcript is split into chunks and summaries are merged.")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -914,9 +915,25 @@ struct SettingsView: View {
             Label("Summarization Prompt", systemImage: "text.bubble")
                 .font(.headline)
 
-            Text("Customize the system prompt used when generating meeting summaries.")
+            Text("Customize the system prompt used when generating summaries.")
                 .font(.caption)
                 .foregroundColor(.secondary)
+
+            Picker("Mode", selection: $summarizationMode) {
+                ForEach(SummarizationMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: summarizationMode) { _, newMode in
+                ModelSettings.summarizationMode = newMode
+                // If the current prompt matches any known preset, switch to the new mode's prompt
+                let isPreset = SummarizationMode.allCases.contains { $0.defaultPrompt == customPrompt }
+                if isPreset {
+                    customPrompt = newMode.defaultPrompt
+                    ModelSettings.summarizationSystemPrompt = customPrompt
+                }
+            }
 
             TextEditor(text: $customPrompt)
                 .font(.system(.body, design: .monospaced))
@@ -934,9 +951,9 @@ struct SettingsView: View {
 
             HStack {
                 Spacer()
-                if customPrompt != ModelSettings.defaultSummarizationPrompt {
+                if customPrompt != summarizationMode.defaultPrompt {
                     Button("Reset to Default") {
-                        customPrompt = ModelSettings.defaultSummarizationPrompt
+                        customPrompt = summarizationMode.defaultPrompt
                         ModelSettings.summarizationSystemPrompt = customPrompt
                     }
                     .buttonStyle(.bordered)
