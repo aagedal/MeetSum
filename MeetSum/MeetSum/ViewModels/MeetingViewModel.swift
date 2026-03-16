@@ -484,6 +484,31 @@ class MeetingViewModel: ObservableObject {
         exportText(transcription, filename: "\(exportPrefix)_transcription.txt")
     }
 
+    func exportTranscriptionAsSRT() {
+        guard let segments = recordingSession?.segments, !segments.isEmpty else { return }
+        Logger.info("User exporting transcription as SRT", category: Logger.ui)
+
+        var srt = ""
+        for (index, segment) in segments.enumerated() {
+            let start = Self.srtTimestamp(segment.startTime)
+            let nextStart = index + 1 < segments.count ? segments[index + 1].startTime : segment.startTime + 5
+            let end = Self.srtTimestamp(nextStart)
+            srt += "\(index + 1)\n\(start) --> \(end)\n\(segment.text)\n\n"
+        }
+
+        let srtType = UTType(filenameExtension: "srt", conformingTo: .text) ?? .plainText
+        exportFile(srt, filename: "\(exportPrefix)_transcription.srt", contentType: srtType)
+    }
+
+    private static func srtTimestamp(_ time: TimeInterval) -> String {
+        let totalMs = Int(time * 1000)
+        let hours = totalMs / 3_600_000
+        let minutes = (totalMs % 3_600_000) / 60_000
+        let seconds = (totalMs % 60_000) / 1000
+        let ms = totalMs % 1000
+        return String(format: "%02d:%02d:%02d,%03d", hours, minutes, seconds, ms)
+    }
+
     func exportSummary() {
         guard !summary.isEmpty else { return }
         Logger.info("User exporting summary as text", category: Logger.ui)

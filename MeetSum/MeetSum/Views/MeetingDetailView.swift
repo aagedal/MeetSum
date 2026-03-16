@@ -252,13 +252,19 @@ struct MeetingDetailView: View {
                     .controlSize(.small)
                     .help("Copy transcription to clipboard")
 
-                    Button(action: {
-                        viewModel.exportTranscription()
-                    }) {
+                    Menu {
+                        Button("Export as Text") {
+                            viewModel.exportTranscription()
+                        }
+                        Button("Export as SRT") {
+                            viewModel.exportTranscriptionAsSRT()
+                        }
+                        .disabled(viewModel.recordingSession?.segments.isEmpty ?? true)
+                    } label: {
                         Image(systemName: "square.and.arrow.up")
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                     .help("Export transcription")
 
                     Button(action: {
