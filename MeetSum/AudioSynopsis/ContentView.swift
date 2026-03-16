@@ -11,7 +11,10 @@ import AppKit
 struct ContentView: View {
     @ObservedObject var modelManager: ModelManager
     @ObservedObject var recordingStore: RecordingStore
+    @ObservedObject var chatStore: ChatStore
+    @ObservedObject var llamaServerManager: LlamaServerManager
     @StateObject private var viewModel: RecordingViewModel
+    @StateObject private var chatManager: ChatManager
 
     @State private var showingModelSetup = false
     @State private var selectedTab: Int = 0
@@ -21,10 +24,13 @@ struct ContentView: View {
     @State private var showEndRecordingConfirmation = false
     @Environment(\.openWindow) private var openWindow
 
-    init(modelManager: ModelManager, recordingStore: RecordingStore) {
+    init(modelManager: ModelManager, recordingStore: RecordingStore, chatStore: ChatStore, llamaServerManager: LlamaServerManager) {
         self.modelManager = modelManager
         self.recordingStore = recordingStore
+        self.chatStore = chatStore
+        self.llamaServerManager = llamaServerManager
         _viewModel = StateObject(wrappedValue: RecordingViewModel(modelManager: modelManager, recordingStore: recordingStore))
+        _chatManager = StateObject(wrappedValue: ChatManager(modelManager: modelManager, llamaServerManager: llamaServerManager))
     }
 
     var body: some View {
@@ -74,9 +80,10 @@ struct ContentView: View {
                     Picker("View", selection: $selectedTab) {
                         Text("Transcript").tag(0)
                         Text("Summary").tag(1)
+                        Text("Chat").tag(2)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 180)
+                    .frame(width: 270)
                 }
             }
             ToolbarItem(placement: .automatic) {
@@ -111,6 +118,8 @@ struct ContentView: View {
             RecordingDetailView(
                 viewModel: viewModel,
                 modelManager: modelManager,
+                chatManager: chatManager,
+                chatStore: chatStore,
                 selectedTab: $selectedTab
             )
         }
@@ -306,5 +315,5 @@ private struct AudioSourceToggles: View {
 }
 
 #Preview {
-    ContentView(modelManager: ModelManager(), recordingStore: RecordingStore())
+    ContentView(modelManager: ModelManager(), recordingStore: RecordingStore(), chatStore: ChatStore(), llamaServerManager: LlamaServerManager())
 }

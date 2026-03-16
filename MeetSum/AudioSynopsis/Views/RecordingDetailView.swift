@@ -10,6 +10,8 @@ import SwiftUI
 struct RecordingDetailView: View {
     @ObservedObject var viewModel: RecordingViewModel
     @ObservedObject var modelManager: ModelManager
+    @ObservedObject var chatManager: ChatManager
+    @ObservedObject var chatStore: ChatStore
     @Binding var selectedTab: Int
     @Environment(\.openWindow) private var openWindow
     @State private var isEditingTitle = false
@@ -57,11 +59,18 @@ struct RecordingDetailView: View {
 
                 // Content: tab + notes side-by-side
                 HStack(alignment: .top, spacing: 0) {
-                    // Tab content (transcript or summary)
+                    // Tab content (transcript, summary, or chat)
                     if selectedTab == 0 {
                         transcriptTab
-                    } else {
+                    } else if selectedTab == 1 {
                         summaryTab
+                    } else {
+                        ChatView(
+                            chatManager: chatManager,
+                            chatStore: chatStore,
+                            recording: viewModel.recordingSession
+                        )
+                        .padding()
                     }
 
                     // Draggable divider

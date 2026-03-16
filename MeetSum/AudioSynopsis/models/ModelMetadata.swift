@@ -11,11 +11,13 @@ import Foundation
 enum ModelType: String, Codable {
     case whisper
     case mlx
+    case gguf
 
     var displayName: String {
         switch self {
         case .whisper: return "Whisper (Speech-to-Text)"
-        case .mlx: return "MLX (Summarization)"
+        case .mlx: return "MLX (Summarization/Chat)"
+        case .gguf: return "GGUF (Chat via llama.cpp)"
         }
     }
 }
@@ -317,6 +319,41 @@ struct ModelMetadata: Identifiable, Codable, Hashable {
         contextWindowTokens: 262_144
     )
 
+    // MARK: - GGUF Models (Chat via llama.cpp)
+
+    static let llama31_8b_q4 = ModelMetadata(
+        id: "llama-3.1-8b-q4_k_m",
+        name: "Llama 3.1 8B Q4_K_M",
+        type: .gguf,
+        filename: "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+        downloadURL: URL(string: "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf")!,
+        sizeBytes: 4_920_000_000,
+        description: "Meta's Llama 3.1 8B quantized. Great quality/speed balance. ~5GB.",
+        contextWindowTokens: 131_072
+    )
+
+    static let qwen25_7b_q4 = ModelMetadata(
+        id: "qwen2.5-7b-q4_k_m",
+        name: "Qwen2.5 7B Q4_K_M",
+        type: .gguf,
+        filename: "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+        downloadURL: URL(string: "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q4_k_m.gguf")!,
+        sizeBytes: 4_680_000_000,
+        description: "Alibaba's Qwen2.5 7B quantized. Strong multilingual support. ~4.7GB.",
+        contextWindowTokens: 131_072
+    )
+
+    static let mistral_7b_q4 = ModelMetadata(
+        id: "mistral-7b-v0.3-q4_k_m",
+        name: "Mistral 7B v0.3 Q4_K_M",
+        type: .gguf,
+        filename: "Mistral-7B-Instruct-v0.3-Q4_K_M.gguf",
+        downloadURL: URL(string: "https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf")!,
+        sizeBytes: 4_370_000_000,
+        description: "Mistral AI 7B v0.3 quantized. Fast and capable. ~4.4GB.",
+        contextWindowTokens: 32_768
+    )
+
     static let allModels: [ModelMetadata] = [
         // General Whisper
         whisperTiny,
@@ -342,7 +379,11 @@ struct ModelMetadata: Identifiable, Codable, Hashable {
         qwen35_9b_mlx,
         qwen35_35b_mlx,
         gemma3_12b_mlx,
-        gptOss20b_mlx
+        gptOss20b_mlx,
+        // GGUF
+        llama31_8b_q4,
+        qwen25_7b_q4,
+        mistral_7b_q4
     ]
 
     static let recommendedModels: [ModelMetadata] = [
@@ -353,6 +394,11 @@ struct ModelMetadata: Identifiable, Codable, Hashable {
     /// Returns whisper models filtered by category
     static func whisperModels(for category: WhisperModelCategory) -> [ModelMetadata] {
         allModels.filter { $0.type == .whisper && $0.whisperCategory == category }
+    }
+
+    /// Returns all GGUF models
+    static var ggufModels: [ModelMetadata] {
+        allModels.filter { $0.type == .gguf }
     }
 
     /// Returns the context window size for the currently selected MLX model, defaulting to 32,768

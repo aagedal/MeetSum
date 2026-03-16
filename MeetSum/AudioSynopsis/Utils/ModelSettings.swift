@@ -57,6 +57,28 @@ enum SummarizationMode: String, CaseIterable, Identifiable {
     }
 }
 
+/// Which chat engine to use for the Chat tab
+enum ChatEngine: String, CaseIterable, Identifiable {
+    case mlx = "mlx"
+    case gguf = "gguf"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .mlx: return "MLX Model"
+        case .gguf: return "GGUF (llama.cpp)"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .mlx: return "On-device MLX model (same models as summarization)"
+        case .gguf: return "GGUF model via bundled llama-server"
+        }
+    }
+}
+
 /// A user-added custom model referenced by file path (security-scoped bookmark)
 struct CustomModelEntry: Codable, Identifiable, Equatable {
     let id: String
@@ -101,6 +123,11 @@ struct ModelSettings {
         static let summarizationMode = "summarizationMode"
         static let customWhisperModels = "customWhisperModels"
         static let customMLXModels = "customMLXModels"
+        static let chatEngine = "chatEngine"
+        static let selectedGGUFModel = "selectedGGUFModel"
+        static let ggufContextSize = "ggufContextSize"
+        static let customGGUFModels = "customGGUFModels"
+        static let chatSystemPrompt = "chatSystemPrompt"
     }
 
     // MARK: - Defaults
@@ -446,6 +473,74 @@ struct ModelSettings {
         }
     }
 
+    // MARK: - Chat Engine
+
+    static var chatEngine: ChatEngine {
+        get {
+            if let raw = defaults.string(forKey: Keys.chatEngine),
+               let engine = ChatEngine(rawValue: raw) {
+                return engine
+            }
+            return .mlx
+        }
+        set {
+            defaults.set(newValue.rawValue, forKey: Keys.chatEngine)
+            Logger.info("Selected chat engine: \(newValue.displayName)", category: Logger.general)
+        }
+    }
+
+    // MARK: - Selected GGUF Model
+
+    static var selectedGGUFModel: String {
+        get {
+            defaults.string(forKey: Keys.selectedGGUFModel) ?? "llama-3.1-8b-q4_k_m"
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.selectedGGUFModel)
+            Logger.info("Selected GGUF model: \(newValue)", category: Logger.general)
+        }
+    }
+
+    // MARK: - GGUF Context Size
+
+    /// Context window size for GGUF models (default: 4096, range: 512-131072)
+    static var ggufContextSize: Int {
+        get {
+            let value = defaults.integer(forKey: Keys.ggufContextSize)
+            return value > 0 ? value : 4096
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.ggufContextSize)
+            Logger.info("GGUF context size: \(newValue)", category: Logger.general)
+        }
+    }
+
+    // MARK: - Chat System Prompt
+
+    static let defaultChatSystemPrompt = "You are a helpful AI assistant. Be concise, accurate, and helpful. When given context from a recording (transcript, notes, or summary), use it to inform your answers."
+
+    static var chatSystemPrompt: String {
+        get {
+            defaults.string(forKey: Keys.chatSystemPrompt) ?? defaultChatSystemPrompt
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.chatSystemPrompt)
+        }
+    }
+
+    // MARK: - Custom GGUF Models
+
+    static var customGGUFModels: [CustomModelEntry] {
+        get {
+            guard let data = defaults.data(forKey: Keys.customGGUFModels) else { return [] }
+            return (try? JSONDecoder().decode([CustomModelEntry].self, from: data)) ?? []
+        }
+        set {
+            let data = try? JSONEncoder().encode(newValue)
+            defaults.set(data, forKey: Keys.customGGUFModels)
+        }
+    }
+
     // MARK: - Setup Status
 
     static var hasCompletedInitialSetup: Bool {
@@ -478,6 +573,11 @@ struct ModelSettings {
         defaults.removeObject(forKey: Keys.summarizationMode)
         defaults.removeObject(forKey: Keys.customWhisperModels)
         defaults.removeObject(forKey: Keys.customMLXModels)
+        defaults.removeObject(forKey: Keys.chatEngine)
+        defaults.removeObject(forKey: Keys.selectedGGUFModel)
+        defaults.removeObject(forKey: Keys.ggufContextSize)
+        defaults.removeObject(forKey: Keys.customGGUFModels)
+        defaults.removeObject(forKey: Keys.chatSystemPrompt)
         Logger.info("Model settings reset", category: Logger.general)
     }
 }

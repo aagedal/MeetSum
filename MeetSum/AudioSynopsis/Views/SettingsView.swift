@@ -34,6 +34,11 @@ struct SettingsView: View {
     @State private var showingCustomMLXFolderPicker = false
     @State private var customWhisperPathModels: [CustomModelEntry] = ModelSettings.customWhisperModels
     @State private var customMLXPathModels: [CustomModelEntry] = ModelSettings.customMLXModels
+    @State private var chatEngine: ChatEngine = ModelSettings.chatEngine
+    @State private var selectedGGUFModel: String = ModelSettings.selectedGGUFModel
+    @State private var ggufContextSize: Double = Double(ModelSettings.ggufContextSize)
+    @State private var chatSystemPrompt: String = ModelSettings.chatSystemPrompt
+    @State private var showingCustomGGUFFilePicker = false
 
     var body: some View {
         TabView {
@@ -106,6 +111,21 @@ struct SettingsView: View {
             .tabItem {
                 Label("Summarization", systemImage: "sparkles")
             }
+
+            // Chat tab
+            ScrollView {
+                VStack(spacing: 24) {
+                    chatEngineSection
+                    Divider()
+                    chatModelSection
+                    Divider()
+                    chatPromptSection
+                }
+                .padding()
+            }
+            .tabItem {
+                Label("Chat", systemImage: "bubble.left.and.bubble.right")
+            }
         }
         .frame(width: 620, height: 520)
         .fileImporter(
@@ -145,6 +165,15 @@ struct SettingsView: View {
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
                 addCustomMLXModel(from: url)
+            }
+        }
+        .fileImporter(
+            isPresented: $showingCustomGGUFFilePicker,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                addCustomGGUFModel(from: url)
             }
         }
         .alert("Delete Model?", isPresented: Binding(
@@ -997,6 +1026,212 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Chat Settings
+
+    private var chatEngineSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Chat Engine", systemImage: "bubble.left.and.bubble.right")
+                .font(.headline)
+
+            Text("Choose which engine powers the Chat tab. Only one engine is active at a time.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Picker("Engine", selection: $chatEngine) {
+                ForEach(ChatEngine.allCases) { engine in
+                    VStack(alignment: .leading) {
+                        Text(engine.displayName)
+                    }
+                    .tag(engine)
+                }
+            }
+            .pickerStyle(.radioGroup)
+            .onChange(of: chatEngine) { _, newEngine in
+                ModelSettings.chatEngine = newEngine
+            }
+
+            Text(chatEngine.description)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.leading, 20)
+        }
+    }
+
+    private var chatModelSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if chatEngine == .mlx {
+                // MLX uses the same model as summarization
+                Label("Chat Model (MLX)", systemImage: "cpu")
+                    .font(.headline)
+
+                Text("The Chat tab uses the same MLX model selected in the Summarization tab.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack {
+                    Text("Current model:")
+                        .font(.subheadline)
+                    Text(ModelSettings.selectedMLXModel)
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                }
+            } else {
+                // GGUF model management
+                Label("Chat Model (GGUF)", systemImage: "cpu")
+                    .font(.headline)
+
+                // Selected model
+                Picker("Active Model", selection: $selectedGGUFModel) {
+                    ForEach(ModelMetadata.ggufModels, id: \.id) { model in
+                        Text(model.name).tag(model.id)
+                    }
+                    // Custom GGUF models
+                    ForEach(ModelSettings.customGGUFModels) { entry in
+                        Text(entry.name).tag(entry.id)
+                    }
+                }
+                .onChange(of: selectedGGUFModel) { _, newValue in
+                    ModelSettings.selectedGGUFModel = newValue
+                }
+
+                // Available GGUF models to download
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Available GGUF Models")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    ForEach(ModelMetadata.ggufModels, id: \.id) { model in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(model.name)
+                                    .font(.subheadline)
+                                Text(model.description)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Text(model.sizeFormatted)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                            if modelManager.isModelInstalled(model.id) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+
+                                Button(action: {
+                                    modelToDelete = model
+                                }) {
+                                    Image(systemName: "trash")
+                                        .foregroundColor(.red)
+                                }
+                                .buttonStyle(.plain)
+                            } else if let progress = modelManager.downloadProgress[model.id] {
+                                VStack(spacing: 2) {
+                                    ProgressView(value: progress.fractionCompleted)
+                                        .frame(width: 80)
+                                    Text("\(progress.percentComplete)%")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Button("Cancel") {
+                                    modelManager.cancelDownload(for: model.id)
+                                    downloadingModels.remove(model.id)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.mini)
+                            } else if downloadingModels.contains(model.id) {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Button("Download") {
+                                    downloadingModels.insert(model.id)
+                                    Task {
+                                        try? await modelManager.downloadModel(model)
+                                        downloadingModels.remove(model.id)
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        Divider()
+                    }
+                }
+
+                // Context size slider
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Context Window Size")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    HStack {
+                        Slider(value: $ggufContextSize, in: 512...131072, step: 512)
+                            .onChange(of: ggufContextSize) { _, newValue in
+                                ModelSettings.ggufContextSize = Int(newValue)
+                            }
+                        Text("\(Int(ggufContextSize))")
+                            .font(.caption.monospacedDigit())
+                            .frame(width: 60, alignment: .trailing)
+                    }
+
+                    Text("Larger context uses more memory. Default: 4096.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                // Custom GGUF model path
+                HStack {
+                    Button("Add Custom GGUF Model...") {
+                        showingCustomGGUFFilePicker = true
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private var chatPromptSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Chat System Prompt", systemImage: "text.bubble")
+                .font(.headline)
+
+            Text("Customize the system prompt used in chat conversations.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            TextEditor(text: $chatSystemPrompt)
+                .font(.system(.body, design: .monospaced))
+                .frame(height: 80)
+                .padding(4)
+                .background(Color(NSColor.textBackgroundColor))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.secondary.opacity(0.3))
+                )
+                .onChange(of: chatSystemPrompt) { _, newValue in
+                    ModelSettings.chatSystemPrompt = newValue
+                }
+
+            HStack {
+                Spacer()
+                if chatSystemPrompt != ModelSettings.defaultChatSystemPrompt {
+                    Button("Reset to Default") {
+                        chatSystemPrompt = ModelSettings.defaultChatSystemPrompt
+                        ModelSettings.chatSystemPrompt = chatSystemPrompt
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
     // MARK: - Custom Whisper Path Models
 
     private var customWhisperPathsSection: some View {
@@ -1260,6 +1495,43 @@ struct SettingsView: View {
             mlxLoader.reset()
         }
         Logger.info("Removed custom MLX model: \(entry.name)", category: Logger.ui)
+    }
+
+    // MARK: - Custom GGUF Model Helpers
+
+    private func addCustomGGUFModel(from url: URL) {
+        guard url.startAccessingSecurityScopedResource() else { return }
+        defer { url.stopAccessingSecurityScopedResource() }
+
+        guard url.pathExtension.lowercased() == "gguf" else {
+            Logger.error("Selected file is not a .gguf file", category: Logger.ui)
+            return
+        }
+
+        guard let bookmarkData = try? url.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        ) else {
+            Logger.error("Failed to create bookmark for custom GGUF model", category: Logger.ui)
+            return
+        }
+
+        let name = url.deletingPathExtension().lastPathComponent
+        let entry = CustomModelEntry(
+            id: "custom-gguf-\(UUID().uuidString)",
+            name: name,
+            bookmarkData: bookmarkData
+        )
+
+        var models = ModelSettings.customGGUFModels
+        models.append(entry)
+        ModelSettings.customGGUFModels = models
+
+        // Auto-select the new model
+        selectedGGUFModel = entry.id
+        ModelSettings.selectedGGUFModel = entry.id
+        Logger.info("Added custom GGUF model: \(name) at \(url.path)", category: Logger.ui)
     }
 
     // MARK: - MLX Cache Helpers

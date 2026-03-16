@@ -69,6 +69,7 @@ class ModelManager: ObservableObject {
 
     @Published var whisperModelDirectory: URL?
     @Published var mlxModelDirectory: URL?
+    @Published var ggufModelDirectory: URL?
     @Published var installedModels: Set<String> = []
     @Published var downloadProgress: [String: DownloadProgress] = [:]
     @Published var customModels: [ModelMetadata] = []
@@ -87,6 +88,7 @@ class ModelManager: ObservableObject {
         Logger.info("ModelManager initialized", category: Logger.general)
         resolveWhisperModelDirectory()
         resolveMLXModelDirectory()
+        resolveGGUFModelDirectory()
         scanInstalledModels()
     }
 
@@ -140,6 +142,18 @@ class ModelManager: ObservableObject {
             try? fileManager.createDirectory(at: defaultMLXDir, withIntermediateDirectories: true, attributes: nil)
             mlxModelDirectory = defaultMLXDir
             Logger.info("Using default MLX model directory: \(defaultMLXDir.path)", category: Logger.general)
+        }
+    }
+
+    /// Resolve the GGUF model directory (default Application Support)
+    private func resolveGGUFModelDirectory() {
+        Logger.info("Resolving GGUF model directory", category: Logger.general)
+
+        if let appSupportDir = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            let defaultGGUFDir = appSupportDir.appendingPathComponent("GGUFModels")
+            try? fileManager.createDirectory(at: defaultGGUFDir, withIntermediateDirectories: true, attributes: nil)
+            ggufModelDirectory = defaultGGUFDir
+            Logger.info("Using GGUF model directory: \(defaultGGUFDir.path)", category: Logger.general)
         }
     }
 
@@ -239,7 +253,42 @@ class ModelManager: ObservableObject {
 
         customModels = discovered
         installedModels = found
-        Logger.info("Found \(found.count) installed models (\(discovered.count) custom)", category: Logger.general)
+
+        // Scan GGUF model directory
+        scanGGUFModels(into: &found)
+
+        installedModels = found
+        Logger.info("Found \(found.count) installed models", category: Logger.general)
+    }
+
+    /// Scan GGUF model directory for installed .gguf files
+    private func scanGGUFModels(into found: inout Set<String>) {
+        guard let directory = ggufModelDirectory else { return }
+
+        Logger.debug("Scanning for GGUF models in: \(directory.path)", category: Logger.general)
+
+        // Check known GGUF models
+        for model in availableModels where model.type == .gguf {
+            let modelPath = directory.appendingPathComponent(model.filename)
+            if fileManager.fileExists(atPath: modelPath.path) {
+                found.insert(model.id)
+                Logger.debug("Found installed GGUF model: \(model.name)", category: Logger.general)
+            }
+        }
+
+        // Discover custom .gguf files
+        let knownGGUFFilenames = Set(availableModels.filter { $0.type == .gguf }.map { $0.filename })
+        if let contents = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.fileSizeKey], options: .skipsHiddenFiles) {
+            for fileURL in contents {
+                let filename = fileURL.lastPathComponent
+                guard filename.hasSuffix(".gguf"), !knownGGUFFilenames.contains(filename) else { continue }
+
+                let id = "custom-gguf-\(filename)"
+                guard !found.contains(id) else { continue }
+                found.insert(id)
+                Logger.debug("Discovered custom GGUF model: \(filename)", category: Logger.general)
+            }
+        }
     }
     
     /// Get the file path for a specific model
@@ -297,6 +346,33 @@ class ModelManager: ObservableObject {
         return nil
     }
     
+    /// Get the file path for a GGUF model
+    func getGGUFModelPath(for modelId: String) -> URL? {
+        // Check custom GGUF path models
+        if modelId.hasPrefix("custom-gguf-") {
+            let filename = String(modelId.dropFirst("custom-gguf-".count))
+            guard let directory = ggufModelDirectory else { return nil }
+            let path = directory.appendingPathComponent(filename)
+            return fileManager.fileExists(atPath: path.path) ? path : nil
+        }
+
+        guard let directory = ggufModelDirectory else {
+            Logger.warning("Cannot get GGUF model path: no directory set", category: Logger.general)
+            return nil
+        }
+
+        guard let model = availableModels.first(where: { $0.id == modelId && $0.type == .gguf }) else {
+            Logger.warning("GGUF model not found: \(modelId)", category: Logger.general)
+            return nil
+        }
+
+        let modelPath = directory.appendingPathComponent(model.filename)
+        if fileManager.fileExists(atPath: modelPath.path) {
+            return modelPath
+        }
+        return nil
+    }
+
     /// Check if a model is installed
     /// - Parameter modelId: Model identifier
     /// - Returns: true if installed
@@ -312,8 +388,16 @@ class ModelManager: ObservableObject {
     /// - Parameter metadata: Model metadata
     func downloadModel(_ metadata: ModelMetadata) async throws {
         Logger.info("Starting download for model: \(metadata.name)", category: Logger.general)
-        
-        guard let directory = whisperModelDirectory else {
+
+        let directory: URL?
+        switch metadata.type {
+        case .gguf:
+            directory = ggufModelDirectory
+        default:
+            directory = whisperModelDirectory
+        }
+
+        guard let directory else {
             Logger.error("Cannot download: no directory set", category: Logger.general)
             throw ModelManagerError.directoryAccessFailed
         }

@@ -25,6 +25,8 @@ extension FocusedValues {
 struct MeetSumApp: App {
     @StateObject private var modelManager = ModelManager()
     @StateObject private var recordingStore = RecordingStore()
+    @StateObject private var chatStore = ChatStore()
+    @StateObject private var llamaServerManager = LlamaServerManager()
     @FocusedValue(\.newRecordingAction) private var newRecordingAction
 
     init() {
@@ -43,7 +45,7 @@ struct MeetSumApp: App {
 
     var body: some Scene {
         Window("Audio Synopsis", id: "main") {
-            ContentView(modelManager: modelManager, recordingStore: recordingStore)
+            ContentView(modelManager: modelManager, recordingStore: recordingStore, chatStore: chatStore, llamaServerManager: llamaServerManager)
                 .frame(minWidth: 900, minHeight: 600)
         }
         .defaultSize(width: 1000, height: 700)
