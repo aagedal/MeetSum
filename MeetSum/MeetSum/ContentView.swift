@@ -64,15 +64,17 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
-                toolbarPrincipal
-            }
-            ToolbarItem {
-                Picker("View", selection: $selectedTab) {
-                    Text("Transcript").tag(0)
-                    Text("Summary").tag(1)
+                HStack(spacing: 20) {
+                    toolbarPrincipal
+                        .padding(.trailing, 4)
+
+                    Picker("View", selection: $selectedTab) {
+                        Text("Transcript").tag(0)
+                        Text("Summary").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 180)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 200)
             }
             ToolbarItem(placement: .automatic) {
                 shareButton
