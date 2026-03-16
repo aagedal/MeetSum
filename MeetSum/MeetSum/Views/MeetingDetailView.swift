@@ -17,6 +17,8 @@ struct MeetingDetailView: View {
     @State private var isSearchingTranscript = false
     @State private var transcriptSearchText = ""
     @State private var currentMatchIndex = 0
+    @State private var notesWidth: CGFloat = 300
+    @GestureState private var dragOffset: CGFloat = 0
 
     var body: some View {
         ZStack {
@@ -51,13 +53,40 @@ struct MeetingDetailView: View {
                 }
 
                 // Content: tab + notes side-by-side
-                HStack(alignment: .top, spacing: 16) {
+                HStack(alignment: .top, spacing: 0) {
                     // Tab content (transcript or summary)
                     if selectedTab == 0 {
                         transcriptTab
                     } else {
                         summaryTab
                     }
+
+                    // Draggable divider
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(width: 8)
+                        .contentShape(Rectangle())
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 1)
+                                .fill(Color.secondary.opacity(0.3))
+                                .frame(width: 3, height: 40)
+                        )
+                        .onHover { hovering in
+                            if hovering {
+                                NSCursor.resizeLeftRight.push()
+                            } else {
+                                NSCursor.pop()
+                            }
+                        }
+                        .gesture(
+                            DragGesture()
+                                .updating($dragOffset) { value, state, _ in
+                                    state = value.translation.width
+                                }
+                                .onEnded { value in
+                                    notesWidth = max(200, min(500, notesWidth - value.translation.width))
+                                }
+                        )
 
                     // Notes panel (always visible, persists across tabs)
                     NotesView(
@@ -71,7 +100,7 @@ struct MeetingDetailView: View {
                         },
                         onTextChange: viewModel.isNewMeetingMode ? nil : { viewModel.saveNotes() }
                     )
-                    .frame(minWidth: 250, idealWidth: 300, maxWidth: 400)
+                    .frame(width: max(200, min(500, notesWidth - dragOffset)))
                 }
                 .padding(.horizontal)
             }
@@ -217,8 +246,7 @@ struct MeetingDetailView: View {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(viewModel.transcription, forType: .string)
                     }) {
-                        Label("Copy", systemImage: "doc.on.doc")
-                            .font(.caption)
+                        Image(systemName: "doc.on.doc")
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -227,11 +255,11 @@ struct MeetingDetailView: View {
                     Button(action: {
                         viewModel.exportTranscription()
                     }) {
-                        Label("Export", systemImage: "square.and.arrow.up")
-                            .font(.caption)
+                        Image(systemName: "square.and.arrow.up")
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .help("Export transcription")
 
                     Button(action: {
                         withAnimation {
@@ -242,8 +270,7 @@ struct MeetingDetailView: View {
                             }
                         }
                     }) {
-                        Label("Search", systemImage: "magnifyingglass")
-                            .font(.caption)
+                        Image(systemName: "magnifyingglass")
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -531,8 +558,7 @@ struct MeetingDetailView: View {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(cleaned, forType: .string)
                     }) {
-                        Label("Copy", systemImage: "doc.on.doc")
-                            .font(.caption)
+                        Image(systemName: "doc.on.doc")
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -546,8 +572,7 @@ struct MeetingDetailView: View {
                             viewModel.exportSummaryAsMarkdown()
                         }
                     } label: {
-                        Label("Export", systemImage: "square.and.arrow.up")
-                            .font(.caption)
+                        Image(systemName: "square.and.arrow.up")
                     }
                     .menuStyle(.borderlessButton)
                     .fixedSize()
