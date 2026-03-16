@@ -420,10 +420,6 @@ struct SettingsView: View {
         ModelMetadata.allModels.filter { $0.type == .mlx && (isMLXModelCached($0) || mlxLoader.downloadedModelIds.contains($0.huggingFaceId ?? $0.id)) }
     }
 
-    private var availableMLXModels: [ModelMetadata] {
-        ModelMetadata.allModels.filter { $0.type == .mlx && !isMLXModelCached($0) && !mlxLoader.downloadedModelIds.contains($0.huggingFaceId ?? $0.id) }
-    }
-
     private var installedMLXModelsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Installed MLX Models", systemImage: "checkmark.circle.fill")
@@ -550,20 +546,14 @@ struct SettingsView: View {
     // MARK: - Available MLX Downloads Section
 
     private var availableMLXModelsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let allMLXModels = ModelMetadata.allModels.filter { $0.type == .mlx }
+
+        return VStack(alignment: .leading, spacing: 12) {
             Label("Available MLX Downloads", systemImage: "arrow.down.circle")
                 .font(.headline)
 
-            if availableMLXModels.isEmpty {
-                Text("All models are downloaded")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
-            } else {
-                ForEach(availableMLXModels) { model in
-                    availableMLXModelRow(model)
-                }
+            ForEach(allMLXModels) { model in
+                availableMLXModelRow(model)
             }
 
             if let error = mlxLoader.error {
@@ -576,6 +566,7 @@ struct SettingsView: View {
 
     private func availableMLXModelRow(_ model: ModelMetadata) -> some View {
         let modelId = model.huggingFaceId ?? model.id
+        let isCached = isMLXModelCached(model) || mlxLoader.downloadedModelIds.contains(modelId)
 
         return VStack(spacing: 0) {
             HStack {
@@ -598,7 +589,10 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 8)
 
-                if mlxLoader.isLoading && mlxLoader.downloadingModelId == modelId {
+                if isCached {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                } else if mlxLoader.isLoading && mlxLoader.downloadingModelId == modelId {
                     Button(action: {
                         mlxLoader.cancel()
                     }) {
