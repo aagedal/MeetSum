@@ -447,45 +447,51 @@ struct SettingsView: View {
                     .frame(width: 30)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(model.name)
-                        .font(.subheadline.weight(.medium))
+                    HStack(spacing: 6) {
+                        Text(model.name)
+                            .font(.subheadline.weight(.medium))
+                        if isSelected {
+                            Text("Active")
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.green.opacity(0.15))
+                                .foregroundColor(.green)
+                                .cornerRadius(4)
+                        }
+                    }
                     Text(model.description)
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    HStack(spacing: 8) {
-                        Text("Size: ~\(model.sizeFormatted)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        if isCached {
-                            Text("Downloaded")
-                                .font(.caption2)
-                                .foregroundColor(.green)
-                        }
-                    }
                 }
 
                 Spacer()
 
-                if mlxLoader.isLoading && mlxLoader.downloadingModelId == (model.huggingFaceId ?? model.id) {
-                    VStack(spacing: 4) {
-                        ProgressView(value: mlxLoader.fractionCompleted)
-                            .progressViewStyle(.linear)
-                            .frame(width: 120)
-                        Text(mlxLoader.status)
-                            .font(.caption2)
+                Text(model.sizeFormatted)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+
+                if mlxLoader.isLoading && mlxLoader.downloadingModelId == modelId {
+                    Button(action: {
+                        mlxLoader.cancel()
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
                     }
+                    .buttonStyle(.plain)
                 } else if !isCached {
-                    Button("Download") {
-                        Task {
-                            await mlxLoader.downloadAndLoad(modelId: model.huggingFaceId ?? model.id)
-                        }
+                    Button(action: {
+                        mlxLoader.downloadAndLoad(modelId: modelId, sizeBytes: model.sizeBytes)
+                    }) {
+                        Label("Download", systemImage: "arrow.down.circle.fill")
+                            .font(.caption)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .disabled(mlxLoader.isLoading)
                 } else if !isSelected {
-                    Button("Select") {
+                    Button("Use") {
                         if let hfId = model.huggingFaceId {
                             ModelSettings.selectedMLXModel = hfId
                             mlxLoader.reset()
@@ -493,7 +499,7 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                } else if isSelected && mlxLoader.isLoaded {
+                } else if mlxLoader.isLoaded {
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.green)
@@ -503,13 +509,38 @@ struct SettingsView: View {
                     }
                 } else {
                     Button("Verify") {
-                        Task {
-                            await mlxLoader.downloadAndLoad(modelId: model.huggingFaceId ?? model.id)
-                        }
+                        mlxLoader.downloadAndLoad(modelId: modelId, sizeBytes: model.sizeBytes)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                 }
+            }
+
+            // Progress bar + details below the model info row
+            if mlxLoader.isLoading && mlxLoader.downloadingModelId == modelId {
+                VStack(spacing: 6) {
+                    ProgressView(value: mlxLoader.fractionCompleted)
+                        .progressViewStyle(.linear)
+
+                    HStack {
+                        Text(mlxLoader.status)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+
+                        Spacer()
+
+                        if !mlxLoader.speedFormatted.isEmpty {
+                            Text(mlxLoader.speedFormatted)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Text("\(Int(mlxLoader.fractionCompleted * 100))%")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.top, 8)
             }
 
             // Cache management row for cached models
@@ -618,13 +649,24 @@ struct SettingsView: View {
             // Progress bar + details below the model info row
             if let progress = modelManager.downloadProgress[model.id] {
                 VStack(spacing: 6) {
-                    ProgressView(value: progress.fractionCompleted)
-                        .progressViewStyle(.linear)
+                    if progress.isConnecting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        ProgressView(value: progress.fractionCompleted)
+                            .progressViewStyle(.linear)
+                    }
 
                     HStack {
-                        Text("\(progress.downloadedFormatted) of \(progress.totalFormatted)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                        if progress.isConnecting {
+                            Text("Connecting...")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("\(progress.downloadedFormatted) of \(progress.totalFormatted)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
 
                         Spacer()
 
@@ -634,9 +676,11 @@ struct SettingsView: View {
                                 .foregroundColor(.secondary)
                         }
 
-                        Text("\(progress.percentComplete)%")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                        if !progress.isConnecting {
+                            Text("\(progress.percentComplete)%")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 .padding(.top, 8)
@@ -831,15 +875,41 @@ struct SettingsView: View {
 
     // MARK: - MLX Cache Helpers
 
+    /// Returns the cache directory for a model by checking all known locations.
     private func mlxModelCacheDirectory(_ model: ModelMetadata) -> URL? {
         guard let hfId = model.huggingFaceId else { return nil }
-        guard let mlxDir = modelManager.mlxModelDirectory else { return nil }
-        return mlxDir.appendingPathComponent(hfId)
+        let fm = FileManager.default
+
+        // Check user-configured MLX directory (direct path: mlxDir/org/name)
+        if let mlxDir = modelManager.mlxModelDirectory {
+            let directPath = mlxDir.appendingPathComponent(hfId)
+            if fm.fileExists(atPath: directPath.path) {
+                return directPath
+            }
+        }
+
+        // Check MLX Swift framework cache: {Caches}/models/org/name
+        if let cachesDir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            let mlxCachePath = cachesDir.appendingPathComponent("models").appendingPathComponent(hfId)
+            if fm.fileExists(atPath: mlxCachePath.path) {
+                return mlxCachePath
+            }
+        }
+
+        // Check HuggingFace Hub cache: ~/.cache/huggingface/hub/models--org--name
+        let hubCacheDir = fm.homeDirectoryForCurrentUser
+            .appendingPathComponent(".cache/huggingface/hub")
+        let hubDirName = "models--" + hfId.replacingOccurrences(of: "/", with: "--")
+        let hubPath = hubCacheDir.appendingPathComponent(hubDirName)
+        if fm.fileExists(atPath: hubPath.path) {
+            return hubPath
+        }
+
+        return nil
     }
 
     private func isMLXModelCached(_ model: ModelMetadata) -> Bool {
-        guard let dir = mlxModelCacheDirectory(model) else { return false }
-        return FileManager.default.fileExists(atPath: dir.path)
+        return mlxModelCacheDirectory(model) != nil
     }
 
     private func clearMLXModelCache(_ model: ModelMetadata) {
@@ -947,6 +1017,11 @@ class MLXModelLoader: ObservableObject {
     @Published var fractionCompleted: Double = 0
     @Published var downloadingModelId: String?
     @Published var downloadedModelIds: Set<String> = []
+    @Published var speedFormatted: String = ""
+
+    private var downloadTask: Task<Void, Never>?
+    private var downloadStartTime: Date?
+    private var totalSizeBytes: Int64 = 0
 
     func reset() {
         isLoading = false
@@ -955,33 +1030,75 @@ class MLXModelLoader: ObservableObject {
         error = nil
         fractionCompleted = 0
         downloadingModelId = nil
+        speedFormatted = ""
     }
 
-    func downloadAndLoad(modelId: String) async {
-        isLoading = true
-        downloadingModelId = modelId
-        error = nil
-        fractionCompleted = 0
-        status = "Downloading model..."
+    func downloadAndLoad(modelId: String, sizeBytes: Int64 = 0) {
+        downloadTask?.cancel()
 
-        do {
-            let config = ModelConfiguration(id: modelId)
-            let _ = try await LLMModelFactory.shared.loadContainer(configuration: config) { progress in
-                Task { @MainActor in
-                    self.fractionCompleted = progress.fractionCompleted
-                    self.status = "Downloading: \(Int(progress.fractionCompleted * 100))%"
+        downloadTask = Task {
+            isLoading = true
+            downloadingModelId = modelId
+            error = nil
+            fractionCompleted = 0
+            speedFormatted = ""
+            totalSizeBytes = sizeBytes
+            downloadStartTime = Date()
+            status = "Downloading model..."
+
+            do {
+                let config = ModelConfiguration(id: modelId)
+                let _ = try await LLMModelFactory.shared.loadContainer(configuration: config) { progress in
+                    Task { @MainActor in
+                        self.fractionCompleted = progress.fractionCompleted
+                        self.updateSpeed()
+                    }
+                }
+
+                guard !Task.isCancelled else {
+                    isLoading = false
+                    status = "Cancelled"
+                    return
+                }
+
+                downloadedModelIds.insert(modelId)
+                isLoaded = true
+                isLoading = false
+                status = "Model ready"
+
+            } catch {
+                if !Task.isCancelled {
+                    self.error = error.localizedDescription
+                    isLoading = false
+                    status = "Failed"
                 }
             }
-
-            downloadedModelIds.insert(modelId)
-            isLoaded = true
-            isLoading = false
-            status = "Model ready"
-
-        } catch {
-            self.error = error.localizedDescription
-            isLoading = false
-            status = "Failed"
         }
+    }
+
+    func cancel() {
+        downloadTask?.cancel()
+        isLoading = false
+        downloadingModelId = nil
+        fractionCompleted = 0
+        speedFormatted = ""
+        status = ""
+    }
+
+    private func updateSpeed() {
+        guard let start = downloadStartTime, totalSizeBytes > 0, fractionCompleted > 0 else { return }
+        let elapsed = Date().timeIntervalSince(start)
+        guard elapsed > 0.5 else { return }
+        let downloadedBytes = Double(totalSizeBytes) * fractionCompleted
+        let bytesPerSecond = downloadedBytes / elapsed
+        if bytesPerSecond >= 1_000_000 {
+            speedFormatted = String(format: "%.1f MB/s", bytesPerSecond / 1_000_000)
+        } else {
+            speedFormatted = String(format: "%.0f KB/s", bytesPerSecond / 1_000)
+        }
+
+        let downloadedMB = downloadedBytes / 1_000_000
+        let totalMB = Double(totalSizeBytes) / 1_000_000
+        status = String(format: "%.0f MB of %.0f MB", downloadedMB, totalMB)
     }
 }

@@ -122,17 +122,25 @@ struct ModelSetupView: View {
             } else if downloadingModels.contains(model.id) {
                 if let progress = modelManager.downloadProgress[model.id] {
                     VStack(alignment: .trailing, spacing: 4) {
-                        ProgressView(value: progress.fractionCompleted)
-                            .progressViewStyle(.linear)
-                            .frame(width: 120)
-                        HStack(spacing: 6) {
-                            Text("\(progress.downloadedFormatted) of \(progress.totalFormatted)")
+                        if progress.isConnecting {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Connecting...")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
-                            if progress.bytesPerSecond > 0 {
-                                Text(progress.speedFormatted)
+                        } else {
+                            ProgressView(value: progress.fractionCompleted)
+                                .progressViewStyle(.linear)
+                                .frame(width: 120)
+                            HStack(spacing: 6) {
+                                Text("\(progress.downloadedFormatted) of \(progress.totalFormatted)")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
+                                if progress.bytesPerSecond > 0 {
+                                    Text(progress.speedFormatted)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
                             }
                         }
                     }

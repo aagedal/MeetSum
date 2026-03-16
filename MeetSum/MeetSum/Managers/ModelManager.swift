@@ -15,6 +15,10 @@ struct DownloadProgress {
     let totalBytesExpected: Int64
     let bytesPerSecond: Double
 
+    var isConnecting: Bool {
+        totalBytesWritten == 0
+    }
+
     var downloadedFormatted: String {
         ByteCountFormatter.string(fromByteCount: totalBytesWritten, countStyle: .file)
     }
