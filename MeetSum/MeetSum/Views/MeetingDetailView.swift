@@ -14,6 +14,9 @@ struct MeetingDetailView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var isEditingTitle = false
     @State private var editableTitle = ""
+    @State private var isSearchingTranscript = false
+    @State private var transcriptSearchText = ""
+    @State private var currentMatchIndex = 0
 
     var body: some View {
         ZStack {
@@ -82,6 +85,10 @@ struct MeetingDetailView: View {
         viewModel.isNewMeetingMode || (!viewModel.isRecording && !viewModel.isPaused && recordingSession != nil)
     }
 
+    private var displayTitle: String {
+        viewModel.recordingSession?.title ?? viewModel.pendingTitle ?? "New Meeting"
+    }
+
     private var recordingSession: RecordingSession? {
         viewModel.recordingSession
     }
@@ -99,7 +106,7 @@ struct MeetingDetailView: View {
                     .onExitCommand { isEditingTitle = false }
                 } else {
                     HStack(spacing: 6) {
-                        Text(viewModel.recordingSession?.title ?? "New Meeting")
+                        Text(displayTitle)
                             .font(.system(size: 24, weight: .bold, design: .rounded))
 
                         if canEditTitle {
@@ -110,7 +117,7 @@ struct MeetingDetailView: View {
                     }
                     .onTapGesture {
                         guard canEditTitle else { return }
-                        editableTitle = viewModel.recordingSession?.title ?? "New Meeting"
+                        editableTitle = displayTitle
                         isEditingTitle = true
                     }
                 }
@@ -225,6 +232,22 @@ struct MeetingDetailView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+
+                    Button(action: {
+                        withAnimation {
+                            isSearchingTranscript.toggle()
+                            if !isSearchingTranscript {
+                                transcriptSearchText = ""
+                                currentMatchIndex = 0
+                            }
+                        }
+                    }) {
+                        Label("Search", systemImage: "magnifyingglass")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Search transcript")
                 }
 
                 // Summary progress banner
@@ -247,23 +270,49 @@ struct MeetingDetailView: View {
                     .cornerRadius(8)
                 }
 
-                ScrollView {
-                    if let segments = viewModel.recordingSession?.segments, !segments.isEmpty {
-                        let hasAudio = viewModel.recordingSession?.playbackAudioFileURL != nil
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(segments) { segment in
-                                segmentRow(segment, seekable: hasAudio)
+                // Search bar
+                if isSearchingTranscript {
+                    transcriptSearchBar
+                }
+
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        if let segments = viewModel.recordingSession?.segments, !segments.isEmpty {
+                            let hasAudio = viewModel.recordingSession?.playbackAudioFileURL != nil
+                            let matchingIDs = transcriptMatchingSegmentIDs(segments)
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(segments) { segment in
+                                    let matchIndex = matchingIDs.firstIndex(of: segment.id)
+                                    segmentRow(segment, seekable: hasAudio, highlight: transcriptSearchText)
+                                        .padding(4)
+                                        .background(
+                                            matchIndex != nil && matchIndex == currentMatchIndex
+                                                ? Color.yellow.opacity(0.3)
+                                                : matchIndex != nil
+                                                    ? Color.yellow.opacity(0.1)
+                                                    : Color.clear
+                                        )
+                                        .cornerRadius(4)
+                                        .id(segment.id)
+                                }
                             }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                    } else {
-                        // Fallback for legacy meetings without segments
-                        Text(viewModel.transcription)
-                            .font(.body)
-                            .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding()
+                        } else {
+                            // Fallback for legacy meetings without segments
+                            Text(viewModel.transcription)
+                                .font(.body)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding()
+                        }
+                    }
+                    .onChange(of: currentMatchIndex) {
+                        scrollToCurrentMatch(proxy: proxy)
+                    }
+                    .onChange(of: transcriptSearchText) {
+                        currentMatchIndex = 0
+                        scrollToCurrentMatch(proxy: proxy)
                     }
                 }
                 .background(Color(NSColor.textBackgroundColor))
@@ -288,9 +337,91 @@ struct MeetingDetailView: View {
         .shadow(color: .black.opacity(0.1), radius: 10)
     }
 
+    // MARK: - Transcript Search
+
+    private var transcriptSearchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+
+            TextField("Search transcript...", text: $transcriptSearchText)
+                .textFieldStyle(.roundedBorder)
+                .font(.body)
+
+            if !transcriptSearchText.isEmpty {
+                let matchCount = transcriptMatchCount
+                Text("\(matchCount == 0 ? "No" : "\(currentMatchIndex + 1)/\(matchCount)") match\(matchCount == 1 ? "" : "es")")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize()
+
+                Button(action: {
+                    let count = transcriptMatchCount
+                    if count > 0 {
+                        currentMatchIndex = (currentMatchIndex - 1 + count) % count
+                    }
+                }) {
+                    Image(systemName: "chevron.up")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(transcriptMatchCount == 0)
+
+                Button(action: {
+                    let count = transcriptMatchCount
+                    if count > 0 {
+                        currentMatchIndex = (currentMatchIndex + 1) % count
+                    }
+                }) {
+                    Image(systemName: "chevron.down")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(transcriptMatchCount == 0)
+            }
+
+            Button(action: {
+                withAnimation {
+                    isSearchingTranscript = false
+                    transcriptSearchText = ""
+                    currentMatchIndex = 0
+                }
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(8)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+
+    private var transcriptMatchCount: Int {
+        guard !transcriptSearchText.isEmpty,
+              let segments = viewModel.recordingSession?.segments else { return 0 }
+        return transcriptMatchingSegmentIDs(segments).count
+    }
+
+    private func transcriptMatchingSegmentIDs(_ segments: [TranscriptSegment]) -> [UUID] {
+        guard !transcriptSearchText.isEmpty else { return [] }
+        let query = transcriptSearchText.lowercased()
+        return segments.filter { $0.text.lowercased().contains(query) }.map(\.id)
+    }
+
+    private func scrollToCurrentMatch(proxy: ScrollViewProxy) {
+        guard !transcriptSearchText.isEmpty,
+              let segments = viewModel.recordingSession?.segments else { return }
+        let matchingIDs = transcriptMatchingSegmentIDs(segments)
+        guard currentMatchIndex < matchingIDs.count else { return }
+        withAnimation {
+            proxy.scrollTo(matchingIDs[currentMatchIndex], anchor: .center)
+        }
+    }
+
     // MARK: - Segment Row
 
-    private func segmentRow(_ segment: TranscriptSegment, seekable: Bool = false) -> some View {
+    private func segmentRow(_ segment: TranscriptSegment, seekable: Bool = false, highlight: String = "") -> some View {
         HStack(alignment: .top, spacing: 12) {
             if seekable {
                 Button(action: {
@@ -312,10 +443,27 @@ struct MeetingDetailView: View {
                     .foregroundColor(.secondary)
                     .frame(width: 40, alignment: .trailing)
             }
-            Text(segment.text)
+            highlightedText(segment.text, highlight: highlight)
                 .font(.body)
                 .textSelection(.enabled)
         }
+    }
+
+    private func highlightedText(_ text: String, highlight: String) -> Text {
+        guard !highlight.isEmpty else { return Text(text) }
+        let query = highlight.lowercased()
+        guard text.lowercased().contains(query) else { return Text(text) }
+
+        var attributed = AttributedString(text)
+        var searchStart = attributed.startIndex
+        while searchStart < attributed.endIndex {
+            let remaining = attributed[searchStart...]
+            guard let range = remaining.range(of: highlight, options: .caseInsensitive) else { break }
+            attributed[range].backgroundColor = .yellow
+            attributed[range].foregroundColor = .black
+            searchStart = range.upperBound
+        }
+        return Text(attributed)
     }
 
     // MARK: - Summary Tab

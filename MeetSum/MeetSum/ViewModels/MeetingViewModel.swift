@@ -29,6 +29,7 @@ class MeetingViewModel: ObservableObject {
     @Published var isSummarizing = false
     @Published var summarizationProgress: String = ""
     @Published var processingMeetingIds: Set<UUID> = []
+    @Published var pendingTitle: String?
 
     // MARK: - Managers
 
@@ -233,11 +234,13 @@ class MeetingViewModel: ObservableObject {
         let audioFilename = audioURL.lastPathComponent
         let playbackFilename = recordingManager.currentPlaybackFileURL?.lastPathComponent
         recordingSession = RecordingSession(
+            title: pendingTitle,
             audioFilename: audioFilename,
             playbackAudioFilename: playbackFilename,
             duration: duration,
             notes: notes
         )
+        pendingTitle = nil
 
         // Set transcription immediately so the view has content before the async task runs
         recordingSession?.transcription = liveTranscription
@@ -329,6 +332,7 @@ class MeetingViewModel: ObservableObject {
         liveTranscription = ""
         liveSegments = []
         notes = ""
+        pendingTitle = nil
         isNewMeetingMode = true
         meetingStore.selectedMeetingId = nil
     }
@@ -374,9 +378,12 @@ class MeetingViewModel: ObservableObject {
             // Saved meeting — update via store
             meetingStore.renameMeeting(id: id, newTitle: trimmed)
             recordingSession?.title = trimmed
-        } else {
-            // New meeting mode — update session directly
+        } else if recordingSession != nil {
+            // Recording in progress — update session directly
             recordingSession?.title = trimmed
+        } else {
+            // New meeting mode, no session yet — stash for later
+            pendingTitle = trimmed
         }
     }
 
