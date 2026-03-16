@@ -22,6 +22,7 @@ struct SettingsView: View {
     @State private var customPrompt: String = ModelSettings.summarizationSystemPrompt
     @StateObject private var mlxLoader = MLXModelLoader()
     @State private var selectedWhisperModel: String = ModelSettings.selectedWhisperModel
+    @State private var selectedMLXModel: String = ModelSettings.selectedMLXModel
     @State private var disableThinking: Bool = ModelSettings.disableModelThinking
     @State private var transcriptionLanguage: String = ModelSettings.transcriptionLanguage
     @State private var modelToDelete: ModelMetadata?
@@ -76,7 +77,9 @@ struct SettingsView: View {
 
                     if selectedEngine == .mlx {
                         Divider()
-                        mlxModelSection
+                        installedMLXModelsSection
+                        Divider()
+                        availableMLXModelsSection
                         Divider()
                         summaryLengthSection
                         Divider()
@@ -411,20 +414,38 @@ struct SettingsView: View {
         .cornerRadius(8)
     }
 
-    // MARK: - MLX Model Section
+    // MARK: - Installed MLX Models Section
 
-    private var mlxModelSection: some View {
+    private var cachedMLXModels: [ModelMetadata] {
+        ModelMetadata.allModels.filter { $0.type == .mlx && (isMLXModelCached($0) || mlxLoader.downloadedModelIds.contains($0.huggingFaceId ?? $0.id)) }
+    }
+
+    private var availableMLXModels: [ModelMetadata] {
+        ModelMetadata.allModels.filter { $0.type == .mlx && !isMLXModelCached($0) && !mlxLoader.downloadedModelIds.contains($0.huggingFaceId ?? $0.id) }
+    }
+
+    private var installedMLXModelsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("MLX Model Selection", systemImage: "brain")
+            Label("Installed MLX Models", systemImage: "checkmark.circle.fill")
                 .font(.headline)
+                .foregroundColor(.green)
 
-            Text("Select a model for meeting summarization. The model will be downloaded on first use.")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            if let activeName = cachedMLXModels.first(where: { ($0.huggingFaceId ?? $0.id) == selectedMLXModel })?.name {
+                Text("Active: \(activeName)")
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+            }
 
-            let mlxModels = ModelMetadata.allModels.filter { $0.type == .mlx }
-            ForEach(mlxModels) { model in
-                mlxModelRow(model)
+            if cachedMLXModels.isEmpty {
+                Text("No MLX models cached")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(cachedMLXModels) { model in
+                    installedMLXModelRow(model)
+                }
             }
 
             if let error = mlxLoader.error {
@@ -435,22 +456,21 @@ struct SettingsView: View {
         }
     }
 
-    private func mlxModelRow(_ model: ModelMetadata) -> some View {
+    private func installedMLXModelRow(_ model: ModelMetadata) -> some View {
         let modelId = model.huggingFaceId ?? model.id
-        let isSelected = ModelSettings.selectedMLXModel == modelId
-        let isCached = isMLXModelCached(model) || mlxLoader.downloadedModelIds.contains(modelId)
+        let isActive = selectedMLXModel == modelId
 
         return VStack(spacing: 0) {
             HStack {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(isSelected ? .green : .secondary)
+                Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isActive ? .green : .secondary)
                     .frame(width: 30)
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         Text(model.name)
                             .font(.subheadline.weight(.medium))
-                        if isSelected {
+                        if isActive {
                             Text("Active")
                                 .font(.caption2)
                                 .padding(.horizontal, 6)
@@ -472,6 +492,112 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 8)
 
+                if isActive {
+                    if mlxLoader.isLoaded && mlxLoader.downloadingModelId == modelId {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Ready")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
+                    } else {
+                        Button("Verify") {
+                            mlxLoader.downloadAndLoad(modelId: modelId, sizeBytes: model.sizeBytes)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    }
+                } else {
+                    Button("Use") {
+                        selectedMLXModel = modelId
+                        ModelSettings.selectedMLXModel = modelId
+                        mlxLoader.reset()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
+                Button(action: {
+                    clearMLXModelCache(model)
+                    mlxLoader.reset()
+                }) {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Cache management row
+            HStack {
+                Spacer()
+
+                Button("Open in Finder") {
+                    if let dir = mlxModelCacheDirectory(model) {
+                        NSWorkspace.shared.open(dir)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+            }
+            .padding(.top, 8)
+        }
+        .padding()
+        .background(isActive ? Color.blue.opacity(0.05) : Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+
+    // MARK: - Available MLX Downloads Section
+
+    private var availableMLXModelsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Available MLX Downloads", systemImage: "arrow.down.circle")
+                .font(.headline)
+
+            if availableMLXModels.isEmpty {
+                Text("All models are downloaded")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(availableMLXModels) { model in
+                    availableMLXModelRow(model)
+                }
+            }
+
+            if let error = mlxLoader.error {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
+        }
+    }
+
+    private func availableMLXModelRow(_ model: ModelMetadata) -> some View {
+        let modelId = model.huggingFaceId ?? model.id
+
+        return VStack(spacing: 0) {
+            HStack {
+                Image(systemName: "brain")
+                    .foregroundColor(.purple)
+                    .frame(width: 30)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(model.name)
+                        .font(.subheadline.weight(.medium))
+                    Text(model.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Text(model.sizeFormatted)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+
                 if mlxLoader.isLoading && mlxLoader.downloadingModelId == modelId {
                     Button(action: {
                         mlxLoader.cancel()
@@ -480,7 +606,7 @@ struct SettingsView: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
-                } else if !isCached {
+                } else {
                     Button(action: {
                         mlxLoader.downloadAndLoad(modelId: modelId, sizeBytes: model.sizeBytes)
                     }) {
@@ -490,29 +616,6 @@ struct SettingsView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .disabled(mlxLoader.isLoading)
-                } else if !isSelected {
-                    Button("Use") {
-                        if let hfId = model.huggingFaceId {
-                            ModelSettings.selectedMLXModel = hfId
-                            mlxLoader.reset()
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                } else if mlxLoader.isLoaded {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Ready")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                    }
-                } else {
-                    Button("Verify") {
-                        mlxLoader.downloadAndLoad(modelId: modelId, sizeBytes: model.sizeBytes)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
                 }
             }
 
@@ -542,33 +645,9 @@ struct SettingsView: View {
                 }
                 .padding(.top, 8)
             }
-
-            // Cache management row for cached models
-            if isCached && !mlxLoader.isLoading {
-                HStack {
-                    Spacer()
-
-                    Button("Open in Finder") {
-                        if let dir = mlxModelCacheDirectory(model) {
-                            NSWorkspace.shared.open(dir)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-
-                    Button("Clear Cache") {
-                        clearMLXModelCache(model)
-                        mlxLoader.reset()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .tint(.red)
-                }
-                .padding(.top, 8)
-            }
         }
         .padding()
-        .background(isSelected ? Color.blue.opacity(0.05) : Color(NSColor.controlBackgroundColor))
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
     }
 
@@ -914,9 +993,28 @@ struct SettingsView: View {
 
     private func clearMLXModelCache(_ model: ModelMetadata) {
         guard let dir = mlxModelCacheDirectory(model) else { return }
+        let modelId = model.huggingFaceId ?? model.id
+        let wasActive = selectedMLXModel == modelId
+
         do {
             try FileManager.default.removeItem(at: dir)
+            mlxLoader.downloadedModelIds.remove(modelId)
             Logger.info("Cleared MLX cache for \(model.name) at \(dir.path)", category: Logger.ui)
+
+            // If the deleted model was active, fall back to another cached model or default
+            if wasActive {
+                let mlxModels = ModelMetadata.allModels.filter { $0.type == .mlx }
+                if let fallback = mlxModels.first(where: { $0.id != model.id && (isMLXModelCached($0) || mlxLoader.downloadedModelIds.contains($0.huggingFaceId ?? $0.id)) }),
+                   let fallbackId = fallback.huggingFaceId {
+                    selectedMLXModel = fallbackId
+                    ModelSettings.selectedMLXModel = fallbackId
+                } else {
+                    // Reset to default
+                    let defaultModel = "mlx-community/Qwen3-4B-4bit"
+                    selectedMLXModel = defaultModel
+                    ModelSettings.selectedMLXModel = defaultModel
+                }
+            }
         } catch {
             Logger.error("Failed to clear MLX cache for \(model.name)", error: error, category: Logger.ui)
         }
