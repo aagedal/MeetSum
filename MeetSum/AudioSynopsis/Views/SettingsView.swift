@@ -690,7 +690,11 @@ struct SettingsView: View {
 
                         Spacer()
 
-                        if !mlxLoader.speedFormatted.isEmpty {
+                        if mlxLoader.isStalled {
+                            Text("Downloading large model file...")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        } else if !mlxLoader.speedFormatted.isEmpty {
                             Text(mlxLoader.speedFormatted)
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
@@ -1093,6 +1097,13 @@ struct SettingsView: View {
             installedGGUFModelsSection
             Divider()
             availableGGUFModelsSection
+
+            if let error = modelManager.error {
+                Text(error.localizedDescription)
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
+
             Divider()
             customGGUFPathsSection
             Divider()
@@ -1225,7 +1236,6 @@ struct SettingsView: View {
                 } else if isDownloading {
                     Button(action: {
                         modelManager.cancelDownload(for: model.id)
-                        downloadingModels.remove(model.id)
                     }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
@@ -1236,11 +1246,7 @@ struct SettingsView: View {
                         .controlSize(.small)
                 } else {
                     Button(action: {
-                        downloadingModels.insert(model.id)
-                        Task {
-                            try? await modelManager.downloadModel(model)
-                            downloadingModels.remove(model.id)
-                        }
+                        downloadModel(model)
                     }) {
                         Label("Download", systemImage: "arrow.down.circle.fill")
                             .font(.caption)
@@ -1821,7 +1827,18 @@ struct SettingsView: View {
     }
 
     private func isMLXModelCached(_ model: ModelMetadata) -> Bool {
-        return mlxModelCacheDirectory(model) != nil
+        guard let cacheDir = mlxModelCacheDirectory(model) else { return false }
+
+        // HuggingFace Hub downloads files as {hash}.incomplete and renames on completion.
+        // If blobs/ contains any .incomplete files, the download is not finished.
+        let blobsDir = cacheDir.appendingPathComponent("blobs")
+        if FileManager.default.fileExists(atPath: blobsDir.path),
+           let contents = try? FileManager.default.contentsOfDirectory(atPath: blobsDir.path),
+           contents.contains(where: { $0.hasSuffix(".incomplete") }) {
+            return false
+        }
+
+        return true
     }
 
     private func clearMLXModelCache(_ model: ModelMetadata) {
@@ -1949,10 +1966,20 @@ class MLXModelLoader: ObservableObject {
     @Published var downloadingModelId: String?
     @Published var downloadedModelIds: Set<String> = []
     @Published var speedFormatted: String = ""
+    @Published var isStalled: Bool = false
 
     private var downloadTask: Task<Void, Never>?
-    private var downloadStartTime: Date?
     private var totalSizeBytes: Int64 = 0
+
+    // Interval-based speed measurement
+    private var lastFraction: Double = 0
+    private var lastSpeedTimestamp: CFAbsoluteTime = 0
+    private var currentSpeed: Double = 0
+    private var speedSampleCount: Int = 0
+
+    // Stall detection
+    private var lastProgressChangeTime: CFAbsoluteTime = 0
+    private var lastReportedFraction: Double = -1
 
     func reset() {
         isLoading = false
@@ -1962,6 +1989,17 @@ class MLXModelLoader: ObservableObject {
         fractionCompleted = 0
         downloadingModelId = nil
         speedFormatted = ""
+        isStalled = false
+        resetSpeedState()
+    }
+
+    private func resetSpeedState() {
+        lastFraction = 0
+        lastSpeedTimestamp = 0
+        currentSpeed = 0
+        speedSampleCount = 0
+        lastProgressChangeTime = 0
+        lastReportedFraction = -1
     }
 
     func downloadAndLoad(modelId: String, sizeBytes: Int64 = 0) {
@@ -1973,8 +2011,9 @@ class MLXModelLoader: ObservableObject {
             error = nil
             fractionCompleted = 0
             speedFormatted = ""
+            isStalled = false
             totalSizeBytes = sizeBytes
-            downloadStartTime = Date()
+            resetSpeedState()
             status = "Downloading model..."
 
             do {
@@ -1982,6 +2021,14 @@ class MLXModelLoader: ObservableObject {
                 let _ = try await LLMModelFactory.shared.loadContainer(configuration: config) { progress in
                     Task { @MainActor in
                         self.fractionCompleted = progress.fractionCompleted
+
+                        // Stall detection: track when fraction actually changes
+                        if progress.fractionCompleted != self.lastReportedFraction {
+                            self.lastReportedFraction = progress.fractionCompleted
+                            self.lastProgressChangeTime = CFAbsoluteTimeGetCurrent()
+                            self.isStalled = false
+                        }
+
                         self.updateSpeed()
                     }
                 }
@@ -2013,23 +2060,49 @@ class MLXModelLoader: ObservableObject {
         downloadingModelId = nil
         fractionCompleted = 0
         speedFormatted = ""
+        isStalled = false
         status = ""
     }
 
     private func updateSpeed() {
-        guard let start = downloadStartTime, totalSizeBytes > 0, fractionCompleted > 0 else { return }
-        let elapsed = Date().timeIntervalSince(start)
-        guard elapsed > 0.5 else { return }
-        let downloadedBytes = Double(totalSizeBytes) * fractionCompleted
-        let bytesPerSecond = downloadedBytes / elapsed
-        if bytesPerSecond >= 1_000_000 {
-            speedFormatted = String(format: "%.1f MB/s", bytesPerSecond / 1_000_000)
-        } else {
-            speedFormatted = String(format: "%.0f KB/s", bytesPerSecond / 1_000)
+        guard totalSizeBytes > 0, fractionCompleted > 0 else { return }
+
+        let now = CFAbsoluteTimeGetCurrent()
+
+        // Initialize on first call
+        if lastSpeedTimestamp == 0 {
+            lastSpeedTimestamp = now
+            lastFraction = fractionCompleted
+            lastProgressChangeTime = now
+            return
         }
 
-        let downloadedMB = downloadedBytes / 1_000_000
-        let totalMB = Double(totalSizeBytes) / 1_000_000
-        status = String(format: "%.0f MB of %.0f MB", downloadedMB, totalMB)
+        // Detect stalls (3+ seconds without progress change)
+        if lastProgressChangeTime > 0 && now - lastProgressChangeTime > 3.0 && fractionCompleted < 0.95 {
+            isStalled = true
+            speedFormatted = ""
+        }
+
+        let elapsed = now - lastSpeedTimestamp
+        guard elapsed >= 0.5 else { return }
+
+        let fractionDelta = fractionCompleted - lastFraction
+        let bytesDelta = Double(totalSizeBytes) * fractionDelta
+        currentSpeed = bytesDelta / elapsed
+
+        lastSpeedTimestamp = now
+        lastFraction = fractionCompleted
+        speedSampleCount += 1
+
+        // Don't display speed until warmup (3 samples) to avoid initial burst
+        if speedSampleCount >= 3 && currentSpeed > 0 && !isStalled {
+            speedFormatted = DownloadProgress.formatSpeed(currentSpeed)
+        }
+
+        // Update status with estimated bytes
+        let downloadedBytes = Double(totalSizeBytes) * fractionCompleted
+        status = String(format: "%.0f MB of %.0f MB",
+                        downloadedBytes / 1_000_000,
+                        Double(totalSizeBytes) / 1_000_000)
     }
 }

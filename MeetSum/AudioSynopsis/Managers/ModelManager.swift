@@ -28,11 +28,16 @@ struct DownloadProgress {
     }
 
     var speedFormatted: String {
+        Self.formatSpeed(bytesPerSecond)
+    }
+
+    static func formatSpeed(_ bytesPerSecond: Double) -> String {
         if bytesPerSecond >= 1_000_000 {
             return String(format: "%.1f MB/s", bytesPerSecond / 1_000_000)
-        } else {
+        } else if bytesPerSecond > 0 {
             return String(format: "%.0f KB/s", bytesPerSecond / 1_000)
         }
+        return ""
     }
 
     var percentComplete: Int {
@@ -469,39 +474,39 @@ class ModelManager: ObservableObject {
                             if (error as NSError).code != NSURLErrorCancelled {
                                 self.error = error
                             }
+                            continuation.resume(throwing: error)
                         }
-                        continuation.resume(throwing: error)
                         return
                     }
-                    
+
                     guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200, let tempURL = tempURL else {
                         let error = ModelManagerError.downloadFailed("HTTP error: \(response?.description ?? "unknown")")
                         Task { @MainActor in
                             self.downloadProgress.removeValue(forKey: metadata.id)
                             self.error = error
+                            continuation.resume(throwing: error)
                         }
-                        continuation.resume(throwing: error)
                         return
                     }
                     
                     do {
                         // Move to destination (fileManager is safe to use from background)
                         try FileManager.default.moveItem(at: tempURL, to: destination)
-                        
+
                         Logger.info("Model downloaded successfully: \(metadata.name)", category: Logger.general)
-                        
+
                         Task { @MainActor in
                             self.installedModels.insert(metadata.id)
                             self.downloadProgress.removeValue(forKey: metadata.id)
+                            continuation.resume()
                         }
-                        continuation.resume()
                     } catch {
                         Logger.error("Failed to move downloaded model", error: error, category: Logger.general)
                         Task { @MainActor in
                             self.downloadProgress.removeValue(forKey: metadata.id)
                             self.error = error
+                            continuation.resume(throwing: error)
                         }
-                        continuation.resume(throwing: error)
                     }
                 }
                 

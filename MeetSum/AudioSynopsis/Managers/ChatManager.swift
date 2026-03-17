@@ -268,7 +268,11 @@ class ChatManager: ObservableObject {
         }
 
         if !llamaServerManager.isRunning || llamaServerManager.loadedModelPath != modelPath {
-            modelLoadProgress = "Starting llama-server..."
+            if !llamaServerManager.isBinaryAvailable {
+                modelLoadProgress = "Downloading llama-server..."
+            } else {
+                modelLoadProgress = "Starting llama-server..."
+            }
             try await llamaServerManager.startServer(modelPath: modelPath)
         }
 

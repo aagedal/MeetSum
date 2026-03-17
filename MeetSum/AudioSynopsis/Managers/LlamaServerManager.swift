@@ -19,12 +19,23 @@ class LlamaServerManager: ObservableObject {
     @Published var isLoading = false
     @Published var loadedModelPath: URL?
     @Published var error: Error?
+    @Published var isDownloadingBinary = false
+    @Published var binaryDownloadProgress: DownloadProgress?
+
+    // MARK: - Constants
+
+    /// Pinned llama.cpp release version
+    private static let llamaCppVersion = "b8391"
+    private static let downloadURL = URL(string: "https://github.com/ggml-org/llama.cpp/releases/download/\(llamaCppVersion)/llama-\(llamaCppVersion)-bin-macos-arm64.tar.gz")!
+    /// Approximate download size for progress estimation
+    private static let downloadSizeBytes: Int64 = 38_000_000
 
     // MARK: - Private Properties
 
     private var serverProcess: Process?
     private var serverPort: Int = 8081
     private let portRange = 8081...8089
+    private var downloadTask: URLSessionDownloadTask?
 
     // MARK: - Initialization
 
@@ -39,6 +50,196 @@ class LlamaServerManager: ObservableObject {
                 self?.stopServer()
             }
         }
+    }
+
+    // MARK: - Binary Management
+
+    /// Directory where the downloaded llama-server binary and dylibs are stored
+    private var llamaServerDirectory: URL? {
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        return appSupport.appendingPathComponent("LlamaServer")
+    }
+
+    /// Check if llama-server binary is available (bundled or downloaded)
+    var isBinaryAvailable: Bool {
+        findLlamaServerBinary() != nil
+    }
+
+    /// Ensure the llama-server binary is available, downloading if necessary
+    func ensureBinaryAvailable() async throws {
+        if findLlamaServerBinary() != nil {
+            return
+        }
+        try await downloadLlamaServer()
+    }
+
+    /// Download llama-server from GitHub releases
+    private func downloadLlamaServer() async throws {
+        guard let installDir = llamaServerDirectory else {
+            throw LlamaServerError.downloadFailed("Cannot determine Application Support directory")
+        }
+
+        isDownloadingBinary = true
+        error = nil
+        binaryDownloadProgress = DownloadProgress(
+            fractionCompleted: 0,
+            totalBytesWritten: 0,
+            totalBytesExpected: Self.downloadSizeBytes,
+            bytesPerSecond: 0
+        )
+
+        Logger.info("Downloading llama-server \(Self.llamaCppVersion) from GitHub", category: Logger.processing)
+
+        // Create download delegate for progress
+        let delegate = DownloadDelegate(expectedBytes: Self.downloadSizeBytes) { [weak self] progress in
+            Task { @MainActor [weak self] in
+                self?.binaryDownloadProgress = progress
+            }
+        }
+
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 600
+        config.waitsForConnectivity = true
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+
+        do {
+            let tarballURL: URL = try await withCheckedThrowingContinuation { continuation in
+                let task = session.downloadTask(with: Self.downloadURL) { tempURL, response, error in
+                    defer { session.finishTasksAndInvalidate() }
+
+                    if let error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+
+                    guard let httpResponse = response as? HTTPURLResponse,
+                          httpResponse.statusCode == 200,
+                          let tempURL else {
+                        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+                        continuation.resume(throwing: LlamaServerError.downloadFailed("HTTP \(statusCode)"))
+                        return
+                    }
+
+                    // Move to a stable temp location before the closure exits
+                    let stableTempURL = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("llama-server-\(UUID().uuidString).tar.gz")
+                    do {
+                        try FileManager.default.moveItem(at: tempURL, to: stableTempURL)
+                        continuation.resume(returning: stableTempURL)
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+                self.downloadTask = task
+                task.resume()
+            }
+
+            // Extract the tarball
+            try await extractLlamaServer(tarball: tarballURL, to: installDir)
+
+            // Clean up tarball
+            try? FileManager.default.removeItem(at: tarballURL)
+
+            isDownloadingBinary = false
+            binaryDownloadProgress = nil
+            downloadTask = nil
+
+            Logger.info("llama-server downloaded and installed to \(installDir.path)", category: Logger.processing)
+
+        } catch {
+            isDownloadingBinary = false
+            binaryDownloadProgress = nil
+            downloadTask = nil
+
+            if (error as NSError).code != NSURLErrorCancelled {
+                self.error = error
+                Logger.error("Failed to download llama-server", error: error, category: Logger.processing)
+            }
+            throw error
+        }
+    }
+
+    /// Extract llama-server binary and required dylibs from the release tarball
+    private func extractLlamaServer(tarball: URL, to directory: URL) async throws {
+        // Create the install directory
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let prefix = "llama-\(Self.llamaCppVersion)"
+
+        // Files we need: the server binary and all dylibs it links against
+        let neededFiles = [
+            "\(prefix)/llama-server",
+            "\(prefix)/libmtmd.0.dylib",
+            "\(prefix)/libllama.0.dylib",
+            "\(prefix)/libggml.0.dylib",
+            "\(prefix)/libggml-cpu.0.dylib",
+            "\(prefix)/libggml-blas.0.dylib",
+            "\(prefix)/libggml-metal.0.dylib",
+            "\(prefix)/libggml-rpc.0.dylib",
+            "\(prefix)/libggml-base.0.dylib"
+        ]
+
+        // Use tar to extract only what we need into a temp directory, then move
+        let tempExtractDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("llama-extract-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempExtractDir, withIntermediateDirectories: true)
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+        process.arguments = [
+            "-xzf", tarball.path,
+            "-C", tempExtractDir.path,
+            "--include=\(prefix)/llama-server",
+            "--include=\(prefix)/lib*.dylib"
+        ]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            throw LlamaServerError.downloadFailed("Failed to extract llama-server archive (exit code \(process.terminationStatus))")
+        }
+
+        let extractedDir = tempExtractDir.appendingPathComponent(prefix)
+
+        // Move extracted files to install directory
+        if let contents = try? FileManager.default.contentsOfDirectory(at: extractedDir, includingPropertiesForKeys: nil) {
+            for file in contents {
+                let dest = directory.appendingPathComponent(file.lastPathComponent)
+                // Remove existing file if present (e.g. from a previous version)
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.moveItem(at: file, to: dest)
+            }
+        }
+
+        // Resolve symlinks: tar extracts symlinks, but we need the actual .0.dylib files
+        // The release has: libfoo.0.dylib -> libfoo.0.x.y.dylib
+        // After extraction both the symlink and target should be present
+
+        // Make the server binary executable
+        let serverPath = directory.appendingPathComponent("llama-server").path
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: serverPath)
+
+        // Clean up temp extraction directory
+        try? FileManager.default.removeItem(at: tempExtractDir)
+
+        // Verify the binary exists
+        guard FileManager.default.isExecutableFile(atPath: serverPath) else {
+            throw LlamaServerError.downloadFailed("llama-server binary not found after extraction")
+        }
+    }
+
+    /// Cancel an in-progress binary download
+    func cancelBinaryDownload() {
+        downloadTask?.cancel()
+        downloadTask = nil
+        isDownloadingBinary = false
+        binaryDownloadProgress = nil
     }
 
     // MARK: - Server Lifecycle
@@ -58,6 +259,11 @@ class LlamaServerManager: ObservableObject {
 
         isLoading = true
         error = nil
+
+        // Auto-download binary if not available
+        if findLlamaServerBinary() == nil {
+            try await downloadLlamaServer()
+        }
 
         guard let binaryPath = findLlamaServerBinary() else {
             let err = LlamaServerError.binaryNotFound
@@ -88,6 +294,11 @@ class LlamaServerManager: ObservableObject {
             "--ctx-size", String(contextSize),
             "--n-gpu-layers", "99"
         ]
+
+        // Set environment so dylibs next to the binary are found
+        let binaryDir = (binaryPath as NSString).deletingLastPathComponent
+        process.environment = ProcessInfo.processInfo.environment
+        process.currentDirectoryURL = URL(fileURLWithPath: binaryDir)
 
         let stderrPipe = Pipe()
         let stdoutPipe = Pipe()
@@ -220,12 +431,25 @@ class LlamaServerManager: ObservableObject {
                 return binPath
             }
         }
-        // Check local development path
-        let devPath = Bundle.main.bundlePath + "/Contents/Resources/bin/llama-server"
-        if FileManager.default.fileExists(atPath: devPath) {
-            return devPath
+        // Check downloaded location in Application Support
+        if let dir = llamaServerDirectory {
+            let downloadedPath = dir.appendingPathComponent("llama-server").path
+            if FileManager.default.isExecutableFile(atPath: downloadedPath) {
+                return downloadedPath
+            }
         }
-        Logger.error("llama-server binary not found in bundle", category: Logger.processing)
+        // Fall back to system-installed llama-server (e.g. Homebrew, for development)
+        let systemPaths = [
+            "/opt/homebrew/bin/llama-server",
+            "/usr/local/bin/llama-server"
+        ]
+        for path in systemPaths {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                Logger.info("Using system llama-server at \(path)", category: Logger.processing)
+                return path
+            }
+        }
+        Logger.info("llama-server binary not found, download required", category: Logger.processing)
         return nil
     }
 
@@ -290,11 +514,12 @@ enum LlamaServerError: LocalizedError {
     case startupTimeout
     case requestFailed(String)
     case serverNotRunning
+    case downloadFailed(String)
 
     var errorDescription: String? {
         switch self {
         case .binaryNotFound:
-            return "llama-server binary not found in app bundle. GGUF chat requires the llama-server binary."
+            return "llama-server binary not found. Please check your internet connection and try again."
         case .portConflict:
             return "Could not find an available port for llama-server (tried 8081-8089)."
         case .startupTimeout:
@@ -303,6 +528,8 @@ enum LlamaServerError: LocalizedError {
             return "Chat request failed: \(reason)"
         case .serverNotRunning:
             return "llama-server is not running. Please ensure a GGUF model is selected and downloaded."
+        case .downloadFailed(let reason):
+            return "Failed to download llama-server: \(reason)"
         }
     }
 }

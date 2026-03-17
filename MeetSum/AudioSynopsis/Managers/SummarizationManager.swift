@@ -327,9 +327,13 @@ class SummarizationManager: ObservableObject {
             return nil
         }
 
-        // Start llama-server if needed
+        // Start llama-server if needed (auto-downloads binary if not present)
         do {
-            progress = "Starting llama-server..."
+            if !llamaServerManager.isBinaryAvailable {
+                progress = "Downloading llama-server..."
+            } else {
+                progress = "Starting llama-server..."
+            }
             try await llamaServerManager.startServer(modelPath: modelPath)
         } catch {
             Logger.error("Failed to start llama-server for summarization", error: error, category: Logger.processing)
