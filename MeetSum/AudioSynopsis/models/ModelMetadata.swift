@@ -321,37 +321,81 @@ struct ModelMetadata: Identifiable, Codable, Hashable {
 
     // MARK: - GGUF Models (Chat via llama.cpp)
 
-    static let llama31_8b_q4 = ModelMetadata(
-        id: "llama-3.1-8b-q4_k_m",
-        name: "Llama 3.1 8B Q4_K_M",
+    static let qwen35_08b_q4 = ModelMetadata(
+        id: "qwen3.5-0.8b-q4_k_m",
+        name: "Qwen3.5 0.8B Q4_K_M",
         type: .gguf,
-        filename: "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
-        downloadURL: URL(string: "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf")!,
-        sizeBytes: 4_920_000_000,
-        description: "Meta's Llama 3.1 8B quantized. Great quality/speed balance. ~5GB.",
-        contextWindowTokens: 131_072
+        filename: "Qwen3.5-0.8B-Q4_K_M.gguf",
+        downloadURL: URL(string: "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf")!,
+        sizeBytes: 533_000_000,
+        description: "Qwen3.5 0.8B quantized. Ultra-lightweight and fast. ~533MB.",
+        contextWindowTokens: 262_144
     )
 
-    static let qwen25_7b_q4 = ModelMetadata(
-        id: "qwen2.5-7b-q4_k_m",
-        name: "Qwen2.5 7B Q4_K_M",
+    static let qwen35_2b_q4 = ModelMetadata(
+        id: "qwen3.5-2b-q4_k_m",
+        name: "Qwen3.5 2B Q4_K_M",
         type: .gguf,
-        filename: "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
-        downloadURL: URL(string: "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q4_k_m.gguf")!,
-        sizeBytes: 4_680_000_000,
-        description: "Alibaba's Qwen2.5 7B quantized. Strong multilingual support. ~4.7GB.",
-        contextWindowTokens: 131_072
+        filename: "Qwen3.5-2B-Q4_K_M.gguf",
+        downloadURL: URL(string: "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf")!,
+        sizeBytes: 1_280_000_000,
+        description: "Qwen3.5 2B quantized. Compact with strong multilingual support. ~1.3GB.",
+        contextWindowTokens: 262_144
     )
 
-    static let mistral_7b_q4 = ModelMetadata(
-        id: "mistral-7b-v0.3-q4_k_m",
-        name: "Mistral 7B v0.3 Q4_K_M",
+    static let gemma3n_e2b_q4 = ModelMetadata(
+        id: "gemma-3n-e2b-it-q4_k_m",
+        name: "Gemma 3n E2B IT Q4_K_M",
         type: .gguf,
-        filename: "Mistral-7B-Instruct-v0.3-Q4_K_M.gguf",
-        downloadURL: URL(string: "https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf")!,
-        sizeBytes: 4_370_000_000,
-        description: "Mistral AI 7B v0.3 quantized. Fast and capable. ~4.4GB.",
+        filename: "gemma-3n-E2B-it-Q4_K_M.gguf",
+        downloadURL: URL(string: "https://huggingface.co/unsloth/gemma-3n-E2B-it-GGUF/resolve/main/gemma-3n-E2B-it-Q4_K_M.gguf")!,
+        sizeBytes: 3_030_000_000,
+        description: "Google's Gemma 3n effective 2B instruction-tuned. ~3GB.",
         contextWindowTokens: 32_768
+    )
+
+    static let qwen35_9b_q4 = ModelMetadata(
+        id: "qwen3.5-9b-q4_k_m",
+        name: "Qwen3.5 9B Q4_K_M",
+        type: .gguf,
+        filename: "Qwen3.5-9B-Q4_K_M.gguf",
+        downloadURL: URL(string: "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf")!,
+        sizeBytes: 5_680_000_000,
+        description: "Qwen3.5 9B quantized. Great quality/speed balance. ~5.7GB.",
+        contextWindowTokens: 262_144
+    )
+
+    static let ministral3_14b_q4 = ModelMetadata(
+        id: "ministral-3-14b-q4_k_m",
+        name: "Ministral 3 14B Q4_K_M",
+        type: .gguf,
+        filename: "Ministral-3-14B-Instruct-2512-Q4_K_M.gguf",
+        downloadURL: URL(string: "https://huggingface.co/unsloth/Ministral-3-14B-Instruct-2512-GGUF/resolve/main/Ministral-3-14B-Instruct-2512-Q4_K_M.gguf")!,
+        sizeBytes: 8_240_000_000,
+        description: "Mistral's Ministral 3 14B quantized. Strong and capable. ~8.2GB.",
+        contextWindowTokens: 256_000
+    )
+
+    static let gptOss_20b_q4 = ModelMetadata(
+        id: "gpt-oss-20b-q4_k_m",
+        name: "GPT-OSS 20B Q4_K_M",
+        type: .gguf,
+        filename: "gpt-oss-20b-Q4_K_M.gguf",
+        downloadURL: URL(string: "https://huggingface.co/unsloth/gpt-oss-20b-GGUF/resolve/main/gpt-oss-20b-Q4_K_M.gguf")!,
+        sizeBytes: 11_600_000_000,
+        description: "OpenAI's GPT-OSS 20B quantized. High quality output. ~11.6GB.",
+        contextWindowTokens: 131_072
+    )
+
+    static let qwen35_35b_a3b_q4 = ModelMetadata(
+        id: "qwen3.5-35b-a3b-q4_k_m",
+        name: "Qwen3.5 35B-A3B Q4_K_M",
+        type: .gguf,
+        filename: "Qwen3.5-35B-A3B-Q4_K_M.gguf",
+        downloadURL: URL(string: "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf")!,
+        sizeBytes: 22_000_000_000,
+        description: "Qwen3.5 35B MoE (~3B active). Top quality, large download. ~22GB.",
+        contextWindowTokens: 262_144
     )
 
     static let allModels: [ModelMetadata] = [
@@ -381,9 +425,13 @@ struct ModelMetadata: Identifiable, Codable, Hashable {
         gemma3_12b_mlx,
         gptOss20b_mlx,
         // GGUF
-        llama31_8b_q4,
-        qwen25_7b_q4,
-        mistral_7b_q4
+        qwen35_08b_q4,
+        qwen35_2b_q4,
+        gemma3n_e2b_q4,
+        qwen35_9b_q4,
+        ministral3_14b_q4,
+        gptOss_20b_q4,
+        qwen35_35b_a3b_q4
     ]
 
     static let recommendedModels: [ModelMetadata] = [

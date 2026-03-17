@@ -1780,7 +1780,7 @@ struct SettingsView: View {
         ModelSettings.customGGUFModels = models
 
         if selectedGGUFModel == entry.id {
-            let fallback = ModelMetadata.ggufModels.first?.id ?? "llama-3.1-8b-q4_k_m"
+            let fallback = ModelMetadata.ggufModels.first?.id ?? "qwen3.5-0.8b-q4_k_m"
             selectedGGUFModel = fallback
             ModelSettings.selectedGGUFModel = fallback
         }

@@ -496,7 +496,7 @@ struct ModelSettings {
 
     static var selectedGGUFModel: String {
         get {
-            defaults.string(forKey: Keys.selectedGGUFModel) ?? "llama-3.1-8b-q4_k_m"
+            defaults.string(forKey: Keys.selectedGGUFModel) ?? "qwen3.5-0.8b-q4_k_m"
         }
         set {
             defaults.set(newValue, forKey: Keys.selectedGGUFModel)
