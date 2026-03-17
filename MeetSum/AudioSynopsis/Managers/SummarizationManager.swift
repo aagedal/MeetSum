@@ -23,6 +23,7 @@ class SummarizationManager: ObservableObject {
     @Published var isModelLoaded = false
     @Published var modelLoadProgress: String = ""
     @Published var modelLoadFraction: Double = 0
+    @Published var wasCancelled = false
 
     // MARK: - Private Properties
 
@@ -91,6 +92,15 @@ class SummarizationManager: ObservableObject {
         modelLoadFraction = 0
     }
 
+    /// Cancel an in-progress summarization
+    func cancelSummarization() {
+        wasCancelled = true
+        isSummarizing = false
+        progress = ""
+        error = nil
+        Logger.info("Summarization cancelled by user", category: Logger.processing)
+    }
+
     /// Generate a summary from transcription text using the selected engine
     func summarize(transcription: String, notes: String = "") async -> String? {
         guard !transcription.isEmpty else {
@@ -104,6 +114,7 @@ class SummarizationManager: ObservableObject {
 
         isSummarizing = true
         error = nil
+        wasCancelled = false
 
         let result: String?
         switch engine {
@@ -133,6 +144,11 @@ class SummarizationManager: ObservableObject {
             }
         case .appleIntelligence:
             result = await summarizeWithAppleIntelligence(transcription: transcription, notes: notes)
+        }
+
+        if Task.isCancelled || wasCancelled {
+            isSummarizing = false
+            return nil
         }
 
         isSummarizing = false
@@ -215,6 +231,9 @@ class SummarizationManager: ObservableObject {
                     parameters: GenerateParameters(temperature: 0.7),
                     context: context
                 ) { tokens in
+                    if Task.isCancelled {
+                        return .stop
+                    }
                     if tokens.count >= maxTokens {
                         return .stop
                     }
@@ -230,11 +249,18 @@ class SummarizationManager: ObservableObject {
                 }
             }
 
+            if Task.isCancelled {
+                return nil
+            }
+
             let summary = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
             Logger.info("MLX summarization completed. Summary length: \(summary.count) characters", category: Logger.processing)
             progress = "Summary complete"
             return summary
 
+        } catch is CancellationError {
+            Logger.info("MLX summarization cancelled", category: Logger.processing)
+            return nil
         } catch {
             Logger.error("MLX summarization failed", error: error, category: Logger.processing)
             self.error = error
@@ -285,6 +311,7 @@ class SummarizationManager: ObservableObject {
         // Summarize each chunk
         var chunkSummaries: [String] = []
         for (index, chunk) in chunks.enumerated() {
+            if Task.isCancelled { return nil }
             progress = "Summarizing part \(index + 1) of \(totalParts)..."
             let notesForChunk = index == 0 ? notes : ""
             guard let summary = await summarizeSingleChunk(transcription: chunk, notes: notesForChunk) else {
@@ -369,6 +396,7 @@ class SummarizationManager: ObservableObject {
 
             var tokenCount = 0
             for try await chunk in stream {
+                try Task.checkCancellation()
                 fullResponse += chunk
                 tokenCount += 1
                 if tokenCount % 20 == 0 {
@@ -381,6 +409,9 @@ class SummarizationManager: ObservableObject {
             progress = "Summary complete"
             return summary
 
+        } catch is CancellationError {
+            Logger.info("GGUF summarization cancelled", category: Logger.processing)
+            return nil
         } catch {
             Logger.error("GGUF summarization failed", error: error, category: Logger.processing)
             self.error = error
@@ -411,6 +442,9 @@ class SummarizationManager: ObservableObject {
             progress = "Summary complete"
             return summary
 
+        } catch is CancellationError {
+            Logger.info("Apple Intelligence summarization cancelled", category: Logger.processing)
+            return nil
         } catch {
             Logger.error("Apple Intelligence summarization failed", error: error, category: Logger.processing)
             self.error = error

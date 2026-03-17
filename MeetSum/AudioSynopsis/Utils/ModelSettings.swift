@@ -131,6 +131,7 @@ struct ModelSettings {
         static let ggufContextSize = "ggufContextSize"
         static let customGGUFModels = "customGGUFModels"
         static let chatSystemPrompt = "chatSystemPrompt"
+        static let autoSummarize = "autoSummarize"
     }
 
     // MARK: - Defaults
@@ -544,6 +545,22 @@ struct ModelSettings {
         }
     }
 
+    // MARK: - Auto Summarize
+
+    /// Whether to automatically summarize after recording stops or audio is imported (default: true)
+    static var autoSummarize: Bool {
+        get {
+            if defaults.object(forKey: Keys.autoSummarize) == nil {
+                return true
+            }
+            return defaults.bool(forKey: Keys.autoSummarize)
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.autoSummarize)
+            Logger.info("Auto summarize: \(newValue)", category: Logger.general)
+        }
+    }
+
     // MARK: - Setup Status
 
     static var hasCompletedInitialSetup: Bool {
@@ -581,6 +598,7 @@ struct ModelSettings {
         defaults.removeObject(forKey: Keys.ggufContextSize)
         defaults.removeObject(forKey: Keys.customGGUFModels)
         defaults.removeObject(forKey: Keys.chatSystemPrompt)
+        defaults.removeObject(forKey: Keys.autoSummarize)
         Logger.info("Model settings reset", category: Logger.general)
     }
 }

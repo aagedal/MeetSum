@@ -315,6 +315,14 @@ struct RecordingDetailView: View {
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
+                        Button(action: {
+                            viewModel.cancelSummarization()
+                        }) {
+                            Label("Cancel", systemImage: "xmark.circle")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
                     .padding(10)
                     .background(Color.purple.opacity(0.1))
@@ -619,6 +627,13 @@ struct RecordingDetailView: View {
                     Text(viewModel.summarizationProgress)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    Button(action: {
+                        viewModel.cancelSummarization()
+                    }) {
+                        Label("Cancel", systemImage: "xmark.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -686,6 +701,27 @@ struct RecordingDetailView: View {
                 }
 
                 MarkdownSummaryView(rawSummary: viewModel.summary, searchText: summarySearchText, currentMatchIndex: summaryMatchIndex)
+
+            } else if !viewModel.transcription.isEmpty {
+                // Transcription available but no summary — offer manual generation
+                VStack(spacing: 16) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 40))
+                        .foregroundColor(.secondary.opacity(0.5))
+                    Text("Transcription is ready")
+                        .font(.headline)
+                    Text("Generate a summary from the transcription")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Button(action: {
+                        viewModel.resummarize()
+                    }) {
+                        Label("Generate Summary", systemImage: "sparkles")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             } else {
                 // Empty state

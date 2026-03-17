@@ -47,6 +47,7 @@ class RecordingViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var segmentQueue: [(url: URL, startTime: TimeInterval)] = []
     private var isProcessingSegment = false
+    private var summarizationTask: Task<Void, Never>?
 
     // MARK: - Computed Properties
 
@@ -265,7 +266,7 @@ class RecordingViewModel: ObservableObject {
         }
 
         // Wait for in-flight segments, then finalize
-        Task {
+        summarizationTask = Task {
             await waitForPendingSegments()
 
             // Set transcription and segments from live data
@@ -281,13 +282,14 @@ class RecordingViewModel: ObservableObject {
 
             // Start summarization and update recording when done
             guard !liveTranscription.isEmpty else { return }
+            guard ModelSettings.autoSummarize else { return }
             processingRecordingIds.insert(recordingId)
             defer { processingRecordingIds.remove(recordingId) }
 
             if let summaryText = await summarizationManager.summarize(transcription: liveTranscription, notes: notes) {
                 updateRecordingInStore(id: recordingId) { $0.summary = summaryText }
                 Logger.info("Processing pipeline completed successfully", category: Logger.processing)
-            } else {
+            } else if !summarizationManager.wasCancelled {
                 Logger.error("Summarization failed", category: Logger.processing)
                 errorMessage = "Summarization failed"
             }
@@ -466,8 +468,10 @@ class RecordingViewModel: ObservableObject {
             if let text = await transcriptionManager.transcribe(audioURL: destURL) {
                 updateRecordingInStore(id: recordingId) { $0.transcription = text }
 
-                if let summaryText = await summarizationManager.summarize(transcription: text, notes: "") {
-                    updateRecordingInStore(id: recordingId) { $0.summary = summaryText }
+                if ModelSettings.autoSummarize {
+                    if let summaryText = await summarizationManager.summarize(transcription: text, notes: "") {
+                        updateRecordingInStore(id: recordingId) { $0.summary = summaryText }
+                    }
                 }
             }
         } catch {
@@ -606,15 +610,25 @@ class RecordingViewModel: ObservableObject {
 
         processingRecordingIds.insert(recordingId)
 
-        Task {
+        summarizationTask = Task {
             defer { processingRecordingIds.remove(recordingId) }
 
             guard let summaryText = await summarizationManager.summarize(transcription: transcriptionText, notes: notesText) else {
-                errorMessage = "Re-summarization failed"
+                if !summarizationManager.wasCancelled {
+                    errorMessage = "Re-summarization failed"
+                }
                 return
             }
 
             updateRecordingInStore(id: recordingId) { $0.summary = summaryText }
+        }
+    }
+
+    func cancelSummarization() {
+        summarizationTask?.cancel()
+        summarizationManager.cancelSummarization()
+        if let id = recordingSession?.id {
+            processingRecordingIds.remove(id)
         }
     }
 

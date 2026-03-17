@@ -39,6 +39,7 @@ struct SettingsView: View {
     @State private var ggufContextSize: Double = Double(ModelSettings.ggufContextSize)
     @State private var chatSystemPrompt: String = ModelSettings.chatSystemPrompt
     @State private var showingCustomGGUFFilePicker = false
+    @State private var autoSummarize: Bool = ModelSettings.autoSummarize
 
     var body: some View {
         TabView {
@@ -84,6 +85,9 @@ struct SettingsView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     summarizationEngineSection
+
+                    Divider()
+                    autoSummarizeSection
 
                     Divider()
                     summarizationLanguageSection
@@ -961,6 +965,26 @@ struct SettingsView: View {
     }
 
     // MARK: - Thinking Section
+
+    private var autoSummarizeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Auto-Summarize", systemImage: "arrow.triangle.2.circlepath")
+                .font(.headline)
+
+            Toggle(isOn: $autoSummarize) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Automatically summarize after recording")
+                        .font(.subheadline)
+                    Text("When enabled, a summary is generated automatically after recording stops or audio is imported. When disabled, you can generate summaries on demand from the Summary tab.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .onChange(of: autoSummarize) { _, newValue in
+                ModelSettings.autoSummarize = newValue
+            }
+        }
+    }
 
     private var thinkingSection: some View {
         VStack(alignment: .leading, spacing: 12) {

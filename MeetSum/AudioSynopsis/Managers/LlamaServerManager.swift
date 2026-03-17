@@ -75,6 +75,11 @@ class LlamaServerManager: ObservableObject {
         try await downloadLlamaServer()
     }
 
+    /// Maximum number of retry attempts when a download stalls during connection
+    private static let maxDownloadRetries = 3
+    /// Seconds to wait for first data bytes before retrying the download
+    private static let connectionTimeoutSeconds: TimeInterval = 15
+
     /// Download llama-server from GitHub releases
     private func downloadLlamaServer() async throws {
         guard let installDir = llamaServerDirectory else {
@@ -92,7 +97,68 @@ class LlamaServerManager: ObservableObject {
 
         Logger.info("Downloading llama-server \(Self.llamaCppVersion) from GitHub", category: Logger.processing)
 
-        // Create download delegate for progress
+        // Retry loop for connection-phase stalls
+        var lastError: Error?
+        for attempt in 1...Self.maxDownloadRetries {
+            if attempt > 1 {
+                Logger.info("llama-server download retry attempt \(attempt)/\(Self.maxDownloadRetries)", category: Logger.processing)
+                binaryDownloadProgress = DownloadProgress(fractionCompleted: 0, totalBytesWritten: 0, totalBytesExpected: Self.downloadSizeBytes, bytesPerSecond: 0)
+            }
+
+            do {
+                let tarballURL = try await attemptBinaryDownload()
+
+                // Extract the tarball
+                try await extractLlamaServer(tarball: tarballURL, to: installDir)
+
+                // Clean up tarball
+                try? FileManager.default.removeItem(at: tarballURL)
+
+                isDownloadingBinary = false
+                binaryDownloadProgress = nil
+                downloadTask = nil
+
+                Logger.info("llama-server downloaded and installed to \(installDir.path)", category: Logger.processing)
+                return // Success
+            } catch {
+                lastError = error
+                // Don't retry if user cancelled
+                if (error as NSError).code == NSURLErrorCancelled {
+                    isDownloadingBinary = false
+                    binaryDownloadProgress = nil
+                    downloadTask = nil
+                    throw error
+                }
+                // Only retry connection timeouts
+                if let serverError = error as? LlamaServerError,
+                   case .downloadFailed(let reason) = serverError,
+                   reason.contains("Connection timed out") {
+                    Logger.warning("llama-server download stalled in connecting phase (attempt \(attempt)/\(Self.maxDownloadRetries))", category: Logger.processing)
+                    continue
+                }
+                // For other errors, don't retry
+                isDownloadingBinary = false
+                binaryDownloadProgress = nil
+                downloadTask = nil
+                if (error as NSError).code != NSURLErrorCancelled {
+                    self.error = error
+                    Logger.error("Failed to download llama-server", error: error, category: Logger.processing)
+                }
+                throw error
+            }
+        }
+
+        // All retries exhausted
+        isDownloadingBinary = false
+        binaryDownloadProgress = nil
+        downloadTask = nil
+        self.error = lastError
+        Logger.error("Failed to download llama-server after \(Self.maxDownloadRetries) attempts", category: Logger.processing)
+        throw LlamaServerError.downloadFailed("Download failed after \(Self.maxDownloadRetries) connection attempts. Please check your network and try again.")
+    }
+
+    /// Single download attempt with connection timeout
+    private func attemptBinaryDownload() async throws -> URL {
         let delegate = DownloadDelegate(expectedBytes: Self.downloadSizeBytes) { [weak self] progress in
             Task { @MainActor [weak self] in
                 self?.binaryDownloadProgress = progress
@@ -102,7 +168,7 @@ class LlamaServerManager: ObservableObject {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 600
-        config.waitsForConnectivity = true
+        config.waitsForConnectivity = false  // Fail fast so we can retry instead of silently waiting
         let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
 
         do {
@@ -135,28 +201,22 @@ class LlamaServerManager: ObservableObject {
                 }
                 self.downloadTask = task
                 task.resume()
+
+                // Connection timeout: cancel the task if no data arrives within the timeout
+                let connectionTimeout = Self.connectionTimeoutSeconds
+                DispatchQueue.global().asyncAfter(deadline: .now() + connectionTimeout) { [weak delegate, weak task] in
+                    guard let delegate = delegate, let task = task else { return }
+                    if !delegate.hasReceivedData && task.state == .running {
+                        Logger.warning("llama-server connection timed out after \(Int(connectionTimeout))s — no data received", category: Logger.processing)
+                        task.cancel()
+                    }
+                }
             }
-
-            // Extract the tarball
-            try await extractLlamaServer(tarball: tarballURL, to: installDir)
-
-            // Clean up tarball
-            try? FileManager.default.removeItem(at: tarballURL)
-
-            isDownloadingBinary = false
-            binaryDownloadProgress = nil
-            downloadTask = nil
-
-            Logger.info("llama-server downloaded and installed to \(installDir.path)", category: Logger.processing)
-
+            return tarballURL
         } catch {
-            isDownloadingBinary = false
-            binaryDownloadProgress = nil
-            downloadTask = nil
-
-            if (error as NSError).code != NSURLErrorCancelled {
-                self.error = error
-                Logger.error("Failed to download llama-server", error: error, category: Logger.processing)
+            // Remap cancellation from connection timeout into a retryable error
+            if (error as NSError).code == NSURLErrorCancelled && !delegate.hasReceivedData {
+                throw LlamaServerError.downloadFailed("Connection timed out waiting for data")
             }
             throw error
         }
