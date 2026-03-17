@@ -101,6 +101,13 @@ struct SettingsView: View {
                         contextCapacitySection
                         Divider()
                         thinkingSection
+                    } else if selectedEngine == .gguf {
+                        Divider()
+                        ggufModelSettingsSection
+                        Divider()
+                        summaryLengthSection
+                        Divider()
+                        thinkingSection
                     }
 
                     Divider()
@@ -1037,23 +1044,367 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            Picker("Engine", selection: $chatEngine) {
-                ForEach(ChatEngine.allCases) { engine in
-                    VStack(alignment: .leading) {
-                        Text(engine.displayName)
-                    }
-                    .tag(engine)
-                }
+            ForEach(ChatEngine.allCases) { engine in
+                chatEngineRow(engine)
             }
-            .pickerStyle(.radioGroup)
-            .onChange(of: chatEngine) { _, newEngine in
-                ModelSettings.chatEngine = newEngine
+        }
+    }
+
+    private func chatEngineRow(_ engine: ChatEngine) -> some View {
+        let isSelected = chatEngine == engine
+
+        return HStack {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(isSelected ? .green : .secondary)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(engine.displayName)
+                    .font(.subheadline.weight(.medium))
+                Text(engine.description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
 
-            Text(chatEngine.description)
+            Spacer()
+
+            if !isSelected {
+                Button("Select") {
+                    chatEngine = engine
+                    ModelSettings.chatEngine = engine
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding()
+        .background(isSelected ? Color.blue.opacity(0.05) : Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+
+    // MARK: - Shared GGUF Model Settings
+
+    private var installedGGUFModels: [ModelMetadata] {
+        ModelMetadata.ggufModels.filter { modelManager.isModelInstalled($0.id) }
+    }
+
+    private var ggufModelSettingsSection: some View {
+        VStack(spacing: 24) {
+            installedGGUFModelsSection
+            Divider()
+            availableGGUFModelsSection
+            Divider()
+            customGGUFPathsSection
+            Divider()
+            ggufContextSizeSection
+        }
+    }
+
+    private var installedGGUFModelsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Installed GGUF Models", systemImage: "checkmark.circle.fill")
+                .font(.headline)
+                .foregroundColor(.green)
+
+            if let activeName = installedGGUFModels.first(where: { $0.id == selectedGGUFModel })?.name
+                ?? ModelSettings.customGGUFModels.first(where: { $0.id == selectedGGUFModel })?.name {
+                Text("Active: \(activeName)")
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+            }
+
+            if installedGGUFModels.isEmpty && ModelSettings.customGGUFModels.isEmpty {
+                Text("No GGUF models installed")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(installedGGUFModels) { model in
+                    installedGGUFModelRow(model)
+                }
+            }
+        }
+    }
+
+    private func installedGGUFModelRow(_ model: ModelMetadata) -> some View {
+        let isActive = selectedGGUFModel == model.id
+
+        return HStack {
+            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(isActive ? .green : .secondary)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(model.name)
+                        .font(.subheadline.weight(.medium))
+                    if isActive {
+                        Text("Active")
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundColor(.green)
+                            .cornerRadius(4)
+                    }
+                }
+                Text(model.description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Text(model.sizeFormatted)
                 .font(.caption)
                 .foregroundColor(.secondary)
-                .padding(.leading, 20)
+                .padding(.horizontal, 8)
+
+            if !isActive {
+                Button("Use") {
+                    selectedGGUFModel = model.id
+                    ModelSettings.selectedGGUFModel = model.id
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            Button(action: {
+                modelToDelete = model
+            }) {
+                Image(systemName: "trash")
+                    .foregroundColor(.red)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding()
+        .background(isActive ? Color.blue.opacity(0.05) : Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+
+    private var availableGGUFModelsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Available GGUF Downloads", systemImage: "arrow.down.circle")
+                .font(.headline)
+
+            ForEach(ModelMetadata.ggufModels, id: \.id) { model in
+                availableGGUFModelRow(model)
+            }
+        }
+    }
+
+    private func availableGGUFModelRow(_ model: ModelMetadata) -> some View {
+        let isInstalled = modelManager.isModelInstalled(model.id)
+        let isDownloading = modelManager.downloadProgress[model.id] != nil
+
+        return VStack(spacing: 0) {
+            HStack {
+                Image(systemName: "cpu")
+                    .foregroundColor(.purple)
+                    .frame(width: 30)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(model.name)
+                        .font(.subheadline.weight(.medium))
+                    Text(model.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Text(model.sizeFormatted)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+
+                if isInstalled {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                } else if isDownloading {
+                    Button(action: {
+                        modelManager.cancelDownload(for: model.id)
+                        downloadingModels.remove(model.id)
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                } else if downloadingModels.contains(model.id) {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Button(action: {
+                        downloadingModels.insert(model.id)
+                        Task {
+                            try? await modelManager.downloadModel(model)
+                            downloadingModels.remove(model.id)
+                        }
+                    }) {
+                        Label("Download", systemImage: "arrow.down.circle.fill")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
+
+            // Progress bar + details below the model info row
+            if let progress = modelManager.downloadProgress[model.id] {
+                VStack(spacing: 6) {
+                    if progress.isConnecting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        ProgressView(value: progress.fractionCompleted)
+                            .progressViewStyle(.linear)
+                    }
+
+                    HStack {
+                        if progress.isConnecting {
+                            Text("Connecting...")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("\(progress.downloadedFormatted) of \(progress.totalFormatted)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        if progress.bytesPerSecond > 0 {
+                            Text(progress.speedFormatted)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        if !progress.isConnecting {
+                            Text("\(progress.percentComplete)%")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .padding(.top, 8)
+            }
+        }
+        .padding()
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+
+    private var customGGUFPathsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Custom GGUF Models", systemImage: "folder.badge.gearshape")
+                    .font(.headline)
+                Spacer()
+                Button(action: { showingCustomGGUFFilePicker = true }) {
+                    Label("Add Model...", systemImage: "plus")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            Text("Add GGUF model files from anywhere on your system.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            if ModelSettings.customGGUFModels.isEmpty {
+                Text("No custom models added")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(ModelSettings.customGGUFModels) { entry in
+                    customGGUFPathRow(entry)
+                }
+            }
+        }
+    }
+
+    private func customGGUFPathRow(_ entry: CustomModelEntry) -> some View {
+        let isActive = selectedGGUFModel == entry.id
+        let url = entry.resolveURL()
+
+        return HStack {
+            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(isActive ? .green : .secondary)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(entry.name)
+                        .font(.subheadline.weight(.medium))
+                    if isActive {
+                        Text("Active")
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundColor(.green)
+                            .cornerRadius(4)
+                    }
+                }
+                if let url = url {
+                    Text(url.path)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } else {
+                    Text("Path unavailable")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+            }
+
+            Spacer()
+
+            if !isActive && url != nil {
+                Button("Use") {
+                    selectedGGUFModel = entry.id
+                    ModelSettings.selectedGGUFModel = entry.id
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            Button(action: {
+                removeCustomGGUFModel(entry)
+            }) {
+                Image(systemName: "minus.circle")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding()
+        .background(isActive ? Color.blue.opacity(0.05) : Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+
+    private var ggufContextSizeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Context Window Size", systemImage: "gauge.with.dots.needle.33percent")
+                .font(.headline)
+
+            HStack {
+                Slider(value: $ggufContextSize, in: 512...131072, step: 512)
+                    .onChange(of: ggufContextSize) { _, newValue in
+                        ModelSettings.ggufContextSize = Int(newValue)
+                    }
+                Text("\(Int(ggufContextSize))")
+                    .font(.caption.monospacedDigit())
+                    .frame(width: 60, alignment: .trailing)
+            }
+
+            Text("Larger context uses more memory. Default: 4096.")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
 
@@ -1076,121 +1427,10 @@ struct SettingsView: View {
                         .foregroundColor(.blue)
                 }
             } else {
-                // GGUF model management
                 Label("Chat Model (GGUF)", systemImage: "cpu")
                     .font(.headline)
 
-                // Selected model
-                Picker("Active Model", selection: $selectedGGUFModel) {
-                    ForEach(ModelMetadata.ggufModels, id: \.id) { model in
-                        Text(model.name).tag(model.id)
-                    }
-                    // Custom GGUF models
-                    ForEach(ModelSettings.customGGUFModels) { entry in
-                        Text(entry.name).tag(entry.id)
-                    }
-                }
-                .onChange(of: selectedGGUFModel) { _, newValue in
-                    ModelSettings.selectedGGUFModel = newValue
-                }
-
-                // Available GGUF models to download
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Available GGUF Models")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-
-                    ForEach(ModelMetadata.ggufModels, id: \.id) { model in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(model.name)
-                                    .font(.subheadline)
-                                Text(model.description)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            Text(model.sizeFormatted)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-
-                            if modelManager.isModelInstalled(model.id) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-
-                                Button(action: {
-                                    modelToDelete = model
-                                }) {
-                                    Image(systemName: "trash")
-                                        .foregroundColor(.red)
-                                }
-                                .buttonStyle(.plain)
-                            } else if let progress = modelManager.downloadProgress[model.id] {
-                                VStack(spacing: 2) {
-                                    ProgressView(value: progress.fractionCompleted)
-                                        .frame(width: 80)
-                                    Text("\(progress.percentComplete)%")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-
-                                Button("Cancel") {
-                                    modelManager.cancelDownload(for: model.id)
-                                    downloadingModels.remove(model.id)
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.mini)
-                            } else if downloadingModels.contains(model.id) {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Button("Download") {
-                                    downloadingModels.insert(model.id)
-                                    Task {
-                                        try? await modelManager.downloadModel(model)
-                                        downloadingModels.remove(model.id)
-                                    }
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                        Divider()
-                    }
-                }
-
-                // Context size slider
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Context Window Size")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-
-                    HStack {
-                        Slider(value: $ggufContextSize, in: 512...131072, step: 512)
-                            .onChange(of: ggufContextSize) { _, newValue in
-                                ModelSettings.ggufContextSize = Int(newValue)
-                            }
-                        Text("\(Int(ggufContextSize))")
-                            .font(.caption.monospacedDigit())
-                            .frame(width: 60, alignment: .trailing)
-                    }
-
-                    Text("Larger context uses more memory. Default: 4096.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                // Custom GGUF model path
-                HStack {
-                    Button("Add Custom GGUF Model...") {
-                        showingCustomGGUFFilePicker = true
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
+                ggufModelSettingsSection
             }
         }
     }
@@ -1532,6 +1772,19 @@ struct SettingsView: View {
         selectedGGUFModel = entry.id
         ModelSettings.selectedGGUFModel = entry.id
         Logger.info("Added custom GGUF model: \(name) at \(url.path)", category: Logger.ui)
+    }
+
+    private func removeCustomGGUFModel(_ entry: CustomModelEntry) {
+        var models = ModelSettings.customGGUFModels
+        models.removeAll { $0.id == entry.id }
+        ModelSettings.customGGUFModels = models
+
+        if selectedGGUFModel == entry.id {
+            let fallback = ModelMetadata.ggufModels.first?.id ?? "llama-3.1-8b-q4_k_m"
+            selectedGGUFModel = fallback
+            ModelSettings.selectedGGUFModel = fallback
+        }
+        Logger.info("Removed custom GGUF model: \(entry.name)", category: Logger.ui)
     }
 
     // MARK: - MLX Cache Helpers

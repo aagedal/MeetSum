@@ -29,7 +29,7 @@ struct ContentView: View {
         self.recordingStore = recordingStore
         self.chatStore = chatStore
         self.llamaServerManager = llamaServerManager
-        _viewModel = StateObject(wrappedValue: RecordingViewModel(modelManager: modelManager, recordingStore: recordingStore))
+        _viewModel = StateObject(wrappedValue: RecordingViewModel(modelManager: modelManager, recordingStore: recordingStore, llamaServerManager: llamaServerManager))
         _chatManager = StateObject(wrappedValue: ChatManager(modelManager: modelManager, llamaServerManager: llamaServerManager))
     }
 

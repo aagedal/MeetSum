@@ -348,8 +348,23 @@ class ModelManager: ObservableObject {
     
     /// Get the file path for a GGUF model
     func getGGUFModelPath(for modelId: String) -> URL? {
-        // Check custom GGUF path models
+        // Check custom GGUF path models (bookmark-based first, then filename-based)
         if modelId.hasPrefix("custom-gguf-") {
+            // Try bookmark-based lookup (UUID IDs from file picker)
+            if let entry = ModelSettings.customGGUFModels.first(where: { $0.id == modelId }),
+               let url = entry.resolveURL() {
+                guard url.startAccessingSecurityScopedResource() else {
+                    Logger.warning("Cannot access custom GGUF model: \(url.path)", category: Logger.general)
+                    return nil
+                }
+                if fileManager.fileExists(atPath: url.path) {
+                    return url
+                }
+                url.stopAccessingSecurityScopedResource()
+                return nil
+            }
+
+            // Fall back to filename-based lookup (discovered in GGUF directory)
             let filename = String(modelId.dropFirst("custom-gguf-".count))
             guard let directory = ggufModelDirectory else { return nil }
             let path = directory.appendingPathComponent(filename)

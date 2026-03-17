@@ -28,12 +28,14 @@ class SummarizationManager: ObservableObject {
 
     private var modelContainer: ModelContainer?
     private let modelManager: ModelManager
+    private let llamaServerManager: LlamaServerManager?
     private var loadedModelId: String?
 
     // MARK: - Initialization
 
-    init(modelManager: ModelManager) {
+    init(modelManager: ModelManager, llamaServerManager: LlamaServerManager? = nil) {
         self.modelManager = modelManager
+        self.llamaServerManager = llamaServerManager
     }
 
     // MARK: - Public Methods
@@ -106,7 +108,6 @@ class SummarizationManager: ObservableObject {
         let result: String?
         switch engine {
         case .mlx:
-            // Check if chunked summarization is needed
             let contextWindow = ModelMetadata.contextWindowForCurrentModel()
             let maxOutputTokens = ModelSettings.maxOutputTokens
             let inputBudget = Int(Double(contextWindow) * 0.8) - maxOutputTokens
@@ -117,6 +118,18 @@ class SummarizationManager: ObservableObject {
                 result = await summarizeChunked(transcription: transcription, notes: notes, charBudget: inputBudget * 4)
             } else {
                 result = await summarizeWithMLX(transcription: transcription, notes: notes)
+            }
+        case .gguf:
+            let contextWindow = ModelSettings.ggufContextSize
+            let maxOutputTokens = ModelSettings.maxOutputTokens
+            let inputBudget = Int(Double(contextWindow) * 0.8) - maxOutputTokens
+            let estimatedInputTokens = transcription.count / 4
+
+            if estimatedInputTokens > inputBudget {
+                Logger.info("Transcript exceeds GGUF context budget (\(estimatedInputTokens) est. tokens vs \(inputBudget) budget), using chunked summarization", category: Logger.processing)
+                result = await summarizeChunked(transcription: transcription, notes: notes, charBudget: inputBudget * 4)
+            } else {
+                result = await summarizeWithGGUF(transcription: transcription, notes: notes)
             }
         case .appleIntelligence:
             result = await summarizeWithAppleIntelligence(transcription: transcription, notes: notes)
@@ -230,6 +243,21 @@ class SummarizationManager: ObservableObject {
         }
     }
 
+    // MARK: - Single Chunk Dispatch
+
+    /// Summarize a single chunk using the currently selected engine
+    private func summarizeSingleChunk(transcription: String, notes: String) async -> String? {
+        let engine = ModelSettings.summarizationEngine
+        switch engine {
+        case .mlx:
+            return await summarizeWithMLX(transcription: transcription, notes: notes)
+        case .gguf:
+            return await summarizeWithGGUF(transcription: transcription, notes: notes)
+        case .appleIntelligence:
+            return await summarizeWithAppleIntelligence(transcription: transcription, notes: notes)
+        }
+    }
+
     // MARK: - Chunked Summarization
 
     private func summarizeChunked(transcription: String, notes: String, charBudget: Int) async -> String? {
@@ -259,7 +287,7 @@ class SummarizationManager: ObservableObject {
         for (index, chunk) in chunks.enumerated() {
             progress = "Summarizing part \(index + 1) of \(totalParts)..."
             let notesForChunk = index == 0 ? notes : ""
-            guard let summary = await summarizeWithMLX(transcription: chunk, notes: notesForChunk) else {
+            guard let summary = await summarizeSingleChunk(transcription: chunk, notes: notesForChunk) else {
                 Logger.error("Chunk \(index + 1) summarization failed", category: Logger.processing)
                 return nil
             }
@@ -277,7 +305,84 @@ class SummarizationManager: ObservableObject {
             .joined(separator: "\n\n")
 
         let mergeTranscription = "The following are summaries of consecutive parts of a long recording. Please merge them into a single cohesive summary:\n\n\(combined)"
-        return await summarizeWithMLX(transcription: mergeTranscription, notes: "")
+        return await summarizeSingleChunk(transcription: mergeTranscription, notes: "")
+    }
+
+    // MARK: - GGUF Summarization
+
+    private func summarizeWithGGUF(transcription: String, notes: String = "") async -> String? {
+        guard let llamaServerManager = llamaServerManager else {
+            Logger.error("LlamaServerManager not available for GGUF summarization", category: Logger.processing)
+            error = NSError(domain: "SummarizationManager", code: 3, userInfo: [NSLocalizedDescriptionKey: "GGUF engine is not available. Please restart the app."])
+            return nil
+        }
+
+        progress = "Preparing GGUF model..."
+
+        // Resolve model path
+        let modelId = ModelSettings.selectedGGUFModel
+        guard let modelPath = modelManager.getGGUFModelPath(for: modelId) else {
+            Logger.error("GGUF model not found: \(modelId)", category: Logger.processing)
+            error = NSError(domain: "SummarizationManager", code: 4, userInfo: [NSLocalizedDescriptionKey: "GGUF model '\(modelId)' is not downloaded. Please download a model in Settings."])
+            return nil
+        }
+
+        // Start llama-server if needed
+        do {
+            progress = "Starting llama-server..."
+            try await llamaServerManager.startServer(modelPath: modelPath)
+        } catch {
+            Logger.error("Failed to start llama-server for summarization", error: error, category: Logger.processing)
+            self.error = error
+            return nil
+        }
+
+        progress = "Generating summary..."
+
+        // Build messages
+        var systemPrompt = ModelSettings.summarizationSystemPrompt
+        systemPrompt += Self.languageInstruction()
+        if ModelSettings.disableModelThinking {
+            systemPrompt += " /no_think"
+        }
+        let userContent = Self.buildUserPrompt(transcription: transcription, notes: notes)
+
+        let messages: [[String: String]] = [
+            ["role": "system", "content": systemPrompt],
+            ["role": "user", "content": userContent]
+        ]
+
+        let maxTokens = ModelSettings.maxOutputTokens
+
+        // Stream response and collect
+        var fullResponse = ""
+        do {
+            let stream = llamaServerManager.sendChatCompletion(
+                messages: messages,
+                temperature: 0.7,
+                maxTokens: maxTokens
+            )
+
+            var tokenCount = 0
+            for try await chunk in stream {
+                fullResponse += chunk
+                tokenCount += 1
+                if tokenCount % 20 == 0 {
+                    progress = "Generating summary (\(tokenCount) tokens)..."
+                }
+            }
+
+            let summary = fullResponse.trimmingCharacters(in: .whitespacesAndNewlines)
+            Logger.info("GGUF summarization completed. Summary length: \(summary.count) characters", category: Logger.processing)
+            progress = "Summary complete"
+            return summary
+
+        } catch {
+            Logger.error("GGUF summarization failed", error: error, category: Logger.processing)
+            self.error = error
+            progress = ""
+            return nil
+        }
     }
 
     // MARK: - Apple Intelligence Summarization

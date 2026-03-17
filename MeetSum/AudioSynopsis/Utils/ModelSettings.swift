@@ -11,6 +11,7 @@ import Foundation
 enum SummarizationEngine: String, CaseIterable, Identifiable {
     case mlx = "mlx"
     case appleIntelligence = "appleIntelligence"
+    case gguf = "gguf"
 
     var id: String { rawValue }
 
@@ -18,6 +19,7 @@ enum SummarizationEngine: String, CaseIterable, Identifiable {
         switch self {
         case .mlx: return "MLX Model"
         case .appleIntelligence: return "Apple Intelligence"
+        case .gguf: return "GGUF (llama.cpp)"
         }
     }
 
@@ -25,6 +27,7 @@ enum SummarizationEngine: String, CaseIterable, Identifiable {
         switch self {
         case .mlx: return "On-device MLX model (download required)"
         case .appleIntelligence: return "Built-in Apple Intelligence (no download needed)"
+        case .gguf: return "GGUF model via bundled llama-server"
         }
     }
 }

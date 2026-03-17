@@ -115,11 +115,11 @@ class RecordingViewModel: ObservableObject {
 
     // MARK: - Initialization
 
-    init(modelManager: ModelManager, recordingStore: RecordingStore) {
+    init(modelManager: ModelManager, recordingStore: RecordingStore, llamaServerManager: LlamaServerManager) {
         self.modelManager = modelManager
         self.recordingStore = recordingStore
         self.transcriptionManager = TranscriptionManager(modelManager: modelManager)
-        self.summarizationManager = SummarizationManager(modelManager: modelManager)
+        self.summarizationManager = SummarizationManager(modelManager: modelManager, llamaServerManager: llamaServerManager)
 
         Logger.info("RecordingViewModel initialized", category: Logger.ui)
         setupBindings()
