@@ -89,7 +89,7 @@ struct ChatView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
 
-                if currentConversation != nil && !(currentConversation?.messages.isEmpty ?? true) {
+                if currentConversation != nil {
                     Button(action: deleteCurrentConversation) {
                         Image(systemName: "trash")
                             .font(.caption)
